@@ -1,15 +1,14 @@
 # Week09 ｜ パッケージ管理・systemd
 
 ## 🎯 今週の目標
+- パッケージを安全に管理できる（バージョン指定・ロールバック）
+- systemd の Unit ファイルを自分で書けるようになる
+- 自作スクリプトをサービス化して自動起動させられる
 
 ## 🔗 前回（Week08）からの続き
 深夜の障害を乗り越え、再発防止策の提案まで完了しました。
 今週はその提案を実行に移します。「Apache のバージョン固定」と
 「Week07 で作ったスクリプトを systemd サービスとして本番稼働させる」がミッションです。
-
-- パッケージを安全に管理できる（バージョン指定・ロールバック）
-- systemd の Unit ファイルを自分で書けるようになる
-- 自作スクリプトをサービス化して自動起動させられる
 
 ---
 
@@ -53,9 +52,145 @@ Linuxのソフトウェアは「パッケージ」という形式で配布され
 | RHEL, Rocky Linux, AlmaLinux | .rpm | `dnf` (旧: `yum`) |
 | CentOS 7 | .rpm | `yum` |
 
+---
+
+#### 💡 `apt update` と `apt upgrade` の違い（混同しやすい重要ポイント）
+
+初心者が最も混乱するのがこの2つ。**別々の役割**なので必ず区別して覚えること。
+
+```
+【図解：update と upgrade の関係】
+
+インターネット上のリポジトリ
+  ┌─────────────────────────────────────┐
+  │  apache2: 2.4.58（最新）             │
+  │  nginx:   1.24.0（最新）             │
+  │  curl:    8.5.0（最新）              │
+  └─────────────────────────────────────┘
+           │
+           │ apt update（カタログのダウンロード）
+           ▼
+ローカルのパッケージカタログ（/var/lib/apt/lists/）
+  ┌─────────────────────────────────────┐
+  │「apache2 の最新は 2.4.58 だよ」      │ ← インデックス情報だけ更新
+  │「nginx の最新は 1.24.0 だよ」        │   実際のパッケージはまだダウンロードしない
+  └─────────────────────────────────────┘
+           │
+           │ apt upgrade（実際にインストール）
+           ▼
+インストール済みパッケージ
+  ┌─────────────────────────────────────┐
+  │  apache2: 2.4.52 → 2.4.58 に更新   │ ← カタログを見て古いものを実際に更新
+  │  nginx:   1.22.0 → 1.24.0 に更新   │
+  └─────────────────────────────────────┘
+```
+
+| コマンド | 何をするか | 何をしないか |
+|---------|-----------|------------|
+| `apt update` | リポジトリの「カタログ」を最新化する | 実際のパッケージは何も変わらない |
+| `apt upgrade` | カタログを見て古いパッケージを更新する | 新しいパッケージの追加・削除はしない |
+| `apt full-upgrade` | upgradeに加えて依存関係のために追加・削除も行う | ─ |
+
+> **現場でよくある間違い：**
+> `apt update` だけ実行して「更新した！」と思い込むケース。
+> `apt update` はカタログを更新しているだけで、パッケージ自体は古いまま。
+> セキュリティパッチを当てたいなら必ず `apt update && apt upgrade` の両方が必要。
+
 ```bash
-# apt（Ubuntu/Debian系）
-sudo apt update                   # リポジトリの情報を最新化（インストール前に必ず実行）
+# 基本的な流れ
+sudo apt update                   # まずカタログを更新（これだけでは何も変わらない）
+sudo apt upgrade                  # カタログを見て古いパッケージを実際に更新
+
+# 本番でよく使うパターン（確認しながらアップグレード）
+sudo apt update
+apt list --upgradable             # どのパッケージが更新されるか確認してから
+sudo apt upgrade                  # 実行
+
+# 特定パッケージだけ更新
+sudo apt install --only-upgrade apache2
+```
+
+---
+
+#### 💡 公式リポジトリとサードパーティリポジトリ
+
+パッケージの配布元（リポジトリ）には2種類ある。
+
+```
+【リポジトリの種類と違い】
+
+┌────────────────────────────────────────────────────────────┐
+│  公式リポジトリ（Ubuntu/Debian が管理）                      │
+│                                                            │
+│  ・Ubuntu チームが動作検証・セキュリティ審査を行ったもの       │
+│  ・安定しているが、最新版の反映が遅い場合がある               │
+│  ・設定ファイル: /etc/apt/sources.list                      │
+│                                                            │
+│  例）apt install nginx → Ubuntu が検証済みの nginx が入る   │
+│      （最新版より古い場合がある）                            │
+└────────────────────────────────────────────────────────────┘
+              ↕ 目的に応じて使い分ける
+┌────────────────────────────────────────────────────────────┐
+│  サードパーティリポジトリ（各ソフトウェアベンダーが管理）       │
+│                                                            │
+│  ・Docker社・nginx社など、開発元が直接提供するリポジトリ       │
+│  ・常に最新版が手に入る                                      │
+│  ・Ubuntu の審査を経ていないため、自己責任での追加が必要       │
+│  ・設定ファイル: /etc/apt/sources.list.d/*.list             │
+│                                                            │
+│  例）Docker 公式リポジトリ → Docker社が提供する最新版が入る  │
+└────────────────────────────────────────────────────────────┘
+```
+
+**なぜサードパーティリポジトリが必要か：**
+Docker を例にすると、Ubuntu の公式リポジトリにも `docker.io` というパッケージがあるが、
+Docker 社が提供する公式リポジトリの `docker-ce`（CE = Community Edition）と比べると
+バージョンが古く、機能差もある。Week11 では Docker 社の公式リポジトリを使う。
+
+```bash
+# 【Docker を例にしたサードパーティリポジトリの追加手順】
+
+# Step1: 必要な補助ツールをインストール
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg
+
+# Step2: Docker社のGPG公開鍵を取得・登録
+# （GPG鍵 = 「このパッケージは本当にDocker社が作ったものです」という署名の検証に使う）
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Step3: Docker社のリポジトリをsources.list.dに追加
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list
+
+# Step4: カタログを更新（新しいリポジトリを読み込む）
+sudo apt update
+
+# Step5: Docker をインストール（Docker社の最新版が入る）
+sudo apt install -y docker-ce docker-ce-cli containerd.io
+```
+
+> **GPG 鍵の重要性：**
+> サードパーティリポジトリを追加するとき、GPG鍵の登録が必要。
+> これは「このリポジトリのパッケージは本物か？改ざんされていないか？」を
+> apt が検証するための仕組み。鍵なしで追加すると `apt update` 時に警告が出る。
+
+```bash
+# 現在登録されているリポジトリを確認
+cat /etc/apt/sources.list                  # 公式リポジトリ
+ls /etc/apt/sources.list.d/               # サードパーティリポジトリ一覧
+cat /etc/apt/sources.list.d/docker.list   # Docker のリポジトリ設定
+```
+
+---
+
+```bash
+# apt の主要コマンド
 sudo apt install apache2          # インストール
 sudo apt install apache2=2.4.52-1ubuntu4  # バージョン指定でインストール
 sudo apt remove apache2           # アンインストール（設定ファイルは残る）
