@@ -5,7 +5,7 @@ ECサイト「HanaMall」のインフラチームに入社した田中さんが
 
 ## 📖 カリキュラムビューア
 
-👉 **https://ohtsuka-shota-se/hanamall-linux-curriculum**
+👉 **https://ohtsuka-shota-se.github.io/hanamall-linux-curriculum/**
 
 ## 📁 構成
 
