@@ -1,0 +1,211 @@
+# Week04 ｜ ネットワーク設定・管理
+
+## 🎯 今週の目標
+
+## 🔗 前回（Week03）からの続き
+鈴木さんのアカウント設定と高負荷プロセスの停止が完了しました。
+ここまでで「サーバーの中」の操作に慣れてきました。
+今週は「サーバーとネットワークの関係」に踏み込みます。
+CCNAの知識をLinuxのコマンドと結びつけていきましょう。
+
+- Linuxのネットワーク設定をコマンドラインで確認・変更できる
+- 「繋がらない」を段階的に切り分けるトラブルシューティング手順を身につける
+- ファイアウォール設定でポートを制御できる
+
+## 🚀 まず最初にやること（環境セットアップ）
+
+今週のハンズオンは「すでに問題が起きているサーバー」に対応する形式です。
+**以下のセットアップスクリプトを先に実行して、障害状態を再現してから演習を始めてください。**
+
+```bash
+# 障害環境を作る（先にこれを実行！）
+chmod +x hands-on/04_setup.sh
+bash hands-on/04_setup.sh
+```
+
+実行すると **Apacheは起動済みだがファイアウォールで80番がブロックされた状態** になります。
+その状態から原因を特定・復旧するのが今週のミッションです。
+
+---
+## 📖 今週のミッション（佐藤さんからのSlack）
+
+```
+佐藤 Sato  14:02
+田中さん、急ぎです！🚨
+
+今日立てた新サーバー（prod-web02）に
+外部から全然アクセスできないと開発チームから連絡が来ました。
+サーバー自体は起動してるはずなので、ネットワーク周りを見てください。
+
+切り分けの順番：
+1. サーバーのIPとルーティングを確認
+2. Apache は起動してる？ポートは待ち受けてる？
+3. ローカルから繋がるか？
+4. ファイアウォールで 80 番が開いてるか？
+5. 開いてなければ開放して再確認
+
+各ステップの結果をメモしながら進めてください！
+```
+
+**あなたのミッション：** 「繋がらない」を段階的に切り分けて原因を特定し、復旧する。
+
+---
+
+## 📚 学習内容
+
+### 1. ネットワーク設定の確認・変更
+
+#### 💡 `ip` コマンドと `ifconfig` の違い
+かつては `ifconfig`（net-tools）が標準だったが、現在は `ip`（iproute2）が標準。
+`ifconfig` はディストリビューションによってはデフォルトでインストールされていない。
+新しく覚えるなら `ip` コマンドだけ覚えれば十分。
+
+```bash
+ip a               # IPアドレス一覧（a = address）
+ip r               # ルーティングテーブル（r = route）
+ip link show       # NIC（ネットワークインターフェース）一覧
+
+# 出力例：
+# 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500
+#     inet 192.168.1.10/24 brd 192.168.1.255 scope global eth0
+#
+# eth0 = NICの名前
+# 192.168.1.10/24 = IPアドレス/サブネットマスク（/24 = 255.255.255.0）
+
+# 一時的なIPアドレス追加（再起動で消える）
+sudo ip addr add 192.168.1.20/24 dev eth0
+```
+
+---
+
+### 2. DNS確認・疎通確認
+
+#### 💡 名前解決の仕組み
+ブラウザで `google.com` にアクセスするとき、裏では以下が起きている：
+1. `/etc/hosts` を確認（ローカルのDNSテーブル）
+2. `/etc/resolv.conf` に書かれたDNSサーバーに問い合わせ
+3. IPアドレスを取得してTCP接続
+
+`dig` コマンドはこのDNS問い合わせを手動で実行して結果を確認できる。
+
+```bash
+# DNS確認
+cat /etc/resolv.conf           # 使用中のDNSサーバーを確認
+dig google.com A               # Aレコード（IPアドレス）を問い合わせ
+dig google.com MX              # MXレコード（メールサーバー）を問い合わせ
+dig @8.8.8.8 google.com        # 特定のDNSサーバーに直接問い合わせ
+nslookup google.com            # シンプルな名前解決確認
+
+# 疎通確認
+ping -c 4 8.8.8.8              # ICMP疎通（-c: 回数指定）
+traceroute google.com          # パケットが通る経路を表示
+mtr google.com                 # tracerouteのリアルタイム版（m = my traceroute）
+
+# HTTP疎通確認
+curl -I http://localhost        # HTTPレスポンスヘッダだけを取得（-I = HEAD）
+curl -v http://localhost        # 詳細な通信ログ付き（-v = verbose）
+wget -q -O - http://localhost  # レスポンスボディを標準出力に出す
+```
+
+---
+
+### 3. ポート・コネクション確認
+
+#### 💡 ポートとは
+TCPでは1台のサーバーが複数のサービスを同時に動かすために「ポート番号」を使う。
+CCNA既習者にはおなじみだが、Linuxでのコマンド的な確認方法を習得する。
+
+主要なポート番号：
+| ポート | サービス | 備考 |
+|--------|---------|------|
+| 22 | SSH | リモートログイン |
+| 80 | HTTP | Web（非暗号化） |
+| 443 | HTTPS | Web（SSL） |
+| 3306 | MySQL | データベース |
+| 25 / 587 | SMTP | メール送信 |
+
+```bash
+# ss：待ち受けポートとコネクションの確認（netstatの現代版）
+ss -tnlp
+# -t: TCP, -n: 数値表示（名前解決しない）, -l: LISTEN状態, -p: プロセス表示
+
+# 出力例：
+# LISTEN  0  128  0.0.0.0:22   0.0.0.0:*  users:(("sshd",pid=1234,fd=3))
+# → sshd が 22番ポートで全IPからの接続を待ち受けている
+
+ss -tnp     # -l を外す → 確立済みのコネクション（ESTABLISHED）も見える
+```
+
+---
+
+### 4. ファイアウォール（firewalld）
+
+#### 💡 ファイアウォールの必要性
+サーバーはインターネットに公開すると、世界中からスキャンやアクセスが来る。
+「開けているポートは最小限に」が原則（最小権限の原則）。
+Linuxのファイアウォールは内部的には `netfilter`（カーネル機能）で動いており、
+`firewalld` や `iptables` はそのフロントエンド。
+
+```bash
+sudo systemctl status firewalld    # ファイアウォールの状態確認
+sudo firewall-cmd --list-all       # 現在のルールをすべて表示
+
+# ポート開放
+sudo firewall-cmd --add-port=80/tcp --permanent    # 80番ポートを開放
+sudo firewall-cmd --add-service=http --permanent   # サービス名でも指定できる
+sudo firewall-cmd --reload                          # 設定を反映（必須）
+
+# ポートを閉じる
+sudo firewall-cmd --remove-port=80/tcp --permanent
+sudo firewall-cmd --reload
+
+# 現在開いているポートの確認
+sudo firewall-cmd --list-ports
+```
+
+#### 💡 `--permanent` を付けないとどうなるか
+`--permanent` なしで設定変更すると「現在のセッションだけ有効」になる。
+サーバー再起動すると設定が消えてしまう。
+設定変更は必ず `--permanent` を付け、その後 `--reload` で反映させる。
+
+---
+
+## 🛠️ ハンズオン演習：「繋がらない」を段階的に切り分ける
+
+```bash
+# Step1: そもそもApacheが起動しているか？
+sudo systemctl status apache2
+
+# Step2: ポートで待ち受けているか？
+ss -tnlp | grep 80
+
+# Step3: ローカルからHTTPで繋がるか？
+curl http://localhost
+
+# Step4: ファイアウォールで80番が開いているか？
+sudo firewall-cmd --list-all
+
+# Step5: 外部から繋がらない場合はポートを開放
+sudo firewall-cmd --add-port=80/tcp --permanent
+sudo firewall-cmd --reload
+
+# 意図的に壊して復旧練習
+sudo firewall-cmd --remove-port=80/tcp --permanent
+sudo firewall-cmd --reload
+# → curlで繋がらないことを確認
+# → ポートを開放して復旧
+```
+
+→ 詳細手順は `hands-on/04_network.sh` を参照
+
+---
+
+## 📝 今週の課題
+
+**ハンズオンで手を動かした内容を、今度は自力で再現してみましょう。**
+
+1. `ip a` と `ip r` の出力を見て「このサーバーのIPとゲートウェイ」を答えられるか確認する
+2. `dig` で `google.com` を引き、TTLの値と「その意味（なぜこの秒数が設定されているのか）」を自分の言葉で説明する
+3. `ss -tnlp` の出力から「22番と80番が何のサービスか・なぜLISTENしているのか」を説明する
+4. **応用:** firewalld で 8080/tcp を開放 → `ss -tnlp` で確認 → 閉じる、の一連をコマンド履歴なしで手順を暗記してやってみる
+5. **思考問題:** `ss -tnlp` に見慣れないポートが表示されていたらどう対処するか？手順を3ステップで答えよ

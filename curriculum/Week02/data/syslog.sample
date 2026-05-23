@@ -1,0 +1,14 @@
+May  1 09:00:01 server01 CRON[1234]: (root) CMD (/usr/bin/backup.sh)
+May  1 09:01:15 server01 sshd[5678]: Accepted publickey for deploy from 192.168.1.100 port 52341
+May  1 09:05:32 server01 kernel: [UFW BLOCK] IN=eth0 SRC=203.0.113.5 DST=192.168.1.10 PROTO=TCP
+May  1 09:10:00 server01 systemd[1]: Started nginx.service
+May  1 09:12:45 server01 sshd[5700]: Failed password for root from 10.0.0.99 port 12345 ssh2
+May  1 09:12:46 server01 sshd[5700]: Failed password for root from 10.0.0.99 port 12346 ssh2
+May  1 09:12:47 server01 sshd[5700]: Failed password for root from 10.0.0.99 port 12347 ssh2
+May  1 09:15:00 server01 CRON[2345]: (www-data) CMD (/usr/bin/php /var/www/cron.php)
+May  1 09:20:01 server01 kernel: Out of memory: Killed process 9876 (php-fpm)
+May  1 09:20:05 server01 systemd[1]: php7.4-fpm.service: Main process exited
+May  1 09:20:06 server01 systemd[1]: php7.4-fpm.service: Failed with result 'exit-code'
+May  1 09:21:00 server01 systemd[1]: Restarting php7.4-fpm.service
+May  1 09:21:02 server01 systemd[1]: Started php7.4-fpm.service
+May  1 09:30:00 server01 sshd[6000]: Accepted publickey for ubuntu from 192.168.1.101 port 54321

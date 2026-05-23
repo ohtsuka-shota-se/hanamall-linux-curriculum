@@ -1,0 +1,33 @@
+# HanaMall ステージング環境 docker-compose
+version: '3'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./html:/var/www/html   # ソース変更が即反映される
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: hanamall_secret
+      MYSQL_DATABASE: hanamall
+      MYSQL_USER: hanamall
+      MYSQL_PASSWORD: hanamall_pass
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  db_data:
+
+# 使い方:
+#   docker-compose up -d          # 起動
+#   docker-compose ps             # 状態確認
+#   docker-compose logs -f web    # webログをリアルタイム確認
+#   docker-compose down           # 停止
