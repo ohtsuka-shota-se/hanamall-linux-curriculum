@@ -52,6 +52,43 @@ echo "作成後のディスク状況:"
 df -h /tmp
 
 echo ""
+echo "【Step3.5】lsof 体験：rm してもディスクが空かない現象を確認"
+echo "⚠️  この手順は演習用です。体験したら必ず後の手順で解放してください。"
+echo ""
+echo "--- 別の端末でダミーファイルを開き続けるプロセスを起動 ---"
+echo "tail -f /tmp/dummy_lsof_test &"
+tail -f /tmp/dummy_lsof_test 2>/dev/null &
+TAIL_PID=$!
+echo "(バックグラウンドPID: $TAIL_PID)"
+
+echo ""
+echo "--- ダミーファイルを作成して tail で開く ---"
+dd if=/dev/zero of=/tmp/dummy_lsof_test bs=1M count=100 status=progress 2>&1 || true
+echo ""
+echo "作成後のディスク状況:"
+df -h /tmp
+
+echo ""
+echo "--- ファイルを rm で削除（プロセスはまだ開いている）---"
+rm -f /tmp/dummy_lsof_test
+echo "rm 実行後のディスク状況（まだ減っていないはず）:"
+df -h /tmp
+
+echo ""
+echo "--- lsof で「削除済みだが開いているファイル」を確認 ---"
+sudo lsof -p $TAIL_PID 2>/dev/null | grep deleted || \
+  sudo lsof 2>/dev/null | grep "dummy_lsof_test" || \
+  echo "（lsofで確認: sudo lsof | grep deleted）"
+
+echo ""
+echo "--- プロセスを停止してディスクを解放 ---"
+kill $TAIL_PID 2>/dev/null
+sleep 1
+echo "プロセス停止後のディスク状況（今度は減るはず）:"
+df -h /tmp
+echo "✅ lsof 体験完了"
+
+echo ""
 echo "【Step4】不要ファイルの削除と復旧"
 echo ""
 echo "--- 削除候補の確認（古いログ・一時ファイル）---"

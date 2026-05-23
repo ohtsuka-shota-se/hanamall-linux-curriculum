@@ -66,38 +66,48 @@ df -h   # → 今度は減る
 
 ---
 
-## 課題3：LVMでボリューム拡張（手順）
+## 課題3：仮想ディスクを追加して /mnt/data にマウントし fstab に永続化
 
 VirtualBox に仮想ディスク（/dev/sdb）を追加した後：
 
 ```bash
-# 1. 現状確認
+# 1. 新しいディスクが認識されているか確認
 lsblk
-df -h /
+# → /dev/sdb が表示されていればOK
 
-# 2. 新ディスクを PV として登録
-sudo pvcreate /dev/sdb
-pvs   # → /dev/sdb が追加されている
+# 2. パーティションを作成
+sudo fdisk /dev/sdb
+# → n（新規）→ p（プライマリ）→ 1（番号）→ Enter × 2（デフォルト）→ w（書き込み）
 
-# 3. VG に追加
-sudo vgextend ubuntu-vg /dev/sdb
-vgs   # → VFree が増えている
+# 3. フォーマット
+sudo mkfs.ext4 /dev/sdb1
 
-# 4. LV を拡張（空き全部を使う）
-sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+# 4. マウントポイントを作成して一時マウント
+sudo mkdir -p /mnt/data
+sudo mount /dev/sdb1 /mnt/data
+df -h /mnt/data   # → マウントされていることを確認
 
-# 5. ファイルシステムをリサイズ
-sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
+# 5. UUID を確認
+sudo blkid /dev/sdb1
+# → UUID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" type="ext4"
 
-# 6. 確認
-df -h /   # → ルートの容量が増えている
-```
+# 6. /etc/fstab に追記（UUID で指定）
+echo "UUID=<上で確認したUUID>  /mnt/data  ext4  defaults  0  2" | sudo tee -a /etc/fstab
 
-**再起動後もマウントされているか確認：**
-```bash
+# 7. fstab の設定をテスト（再起動前に必ず確認）
+sudo umount /mnt/data
+sudo mount -a          # エラーが出なければ設定OK
+df -h /mnt/data        # → マウントされていることを確認
+
+# 8. 再起動して永続化を確認
 sudo reboot
-df -h /mnt/data   # → マウントされていればOK
+df -h /mnt/data   # → 再起動後もマウントされていればOK
 ```
+
+**なぜ UUID で指定するのか：**
+デバイス名（`/dev/sdb1`）はディスクの追加・削除順序によって変わることがある。
+UUID はディスクのフォーマット時に一意に割り振られる固定値なので、
+デバイス名が変わっても正しいディスクをマウントできる。
 
 ---
 

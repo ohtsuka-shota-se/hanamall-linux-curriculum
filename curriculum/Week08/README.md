@@ -1,15 +1,19 @@
 # Week08 ｜ ストレージ・ディスク管理
 
 ## 🎯 今週の目標
+- ディスク使用量を確認し、容量を圧迫している原因を特定できる
+- パーティション追加・マウントができる
+- LVMでボリュームを拡張できる
 
 ## 🔗 前回（Week07）からの続き
 バックアップスクリプトと healthcheck スクリプトが完成しました。
 ただ、healthcheck が動き出す前に早速障害が来てしまいました…。
 深夜のディスクフルを乗り越えてこそ、インフラエンジニアの真価が問われます。
 
-- ディスク使用量を確認し、容量を圧迫している原因を特定できる
-- パーティション追加・マウントができる
-- LVMでボリュームを拡張できる
+> **⚠️ 演習環境についての注意：**
+> このWeekのパーティション・LVM演習は **WSL2 では実施が難しい** です。
+> VirtualBox または AWS EC2 での実施を強く推奨します。
+> （Week01 の環境選択セクションを参照してください）
 
 ---
 
@@ -132,6 +136,22 @@ du -sh /* 2>/dev/null | sort -rh | head -10
 
 du -sh /var/* 2>/dev/null | sort -rh | head -10  # /varの中を調べる
 du -sh /var/log/* 2>/dev/null | sort -rh          # /var/logの中を調べる
+```
+
+#### 💡 `dd` コマンド（テストファイル作成・ディスク書き込み確認）
+`dd`（data duplicator）はブロック単位でデータを読み書きするコマンド。
+「指定したサイズのファイルを手軽に作れる」ため、ディスク使用量の動作確認によく使われる。
+
+```bash
+# 500MB のテストファイルを作成（/dev/zero はゼロバイトを無限に出力する仮想デバイス）
+dd if=/dev/zero of=/tmp/testfile bs=1M count=500 status=progress
+# if=  入力元（input file）
+# of=  出力先（output file）
+# bs=  1回に処理するブロックサイズ（1M × 500回 = 500MB）
+
+df -h /tmp   # → 500MB 増えているはず
+rm /tmp/testfile
+df -h /tmp   # → 元に戻る
 ```
 
 ---
@@ -348,6 +368,82 @@ df -h /var/log    # → 今度は減る
 # 解決方法2：ファイルを削除せず中身だけ空にする（ログローテーションの考え方）
 > /var/log/apache2/access.log   # ファイルは残したまま中身を空にする
 ```
+
+---
+
+### 6. logrotate によるログ肥大化の防止
+
+#### 💡 logrotate とは
+ログファイルは放置すると際限なく大きくなり、今回のようなディスクフルの原因になる。
+`logrotate` はログファイルを **定期的に自動で切り替え・圧縮・削除** する仕組み。
+Apache や syslog など多くのサービスがデフォルトで logrotate を使っている。
+
+```
+【logrotate の動作イメージ】
+
+毎日実行されると…
+  access.log     → access.log.1 にリネーム（今日のログ）
+  access.log.1   → access.log.2.gz に圧縮
+  access.log.2.gz → access.log.3.gz に繰り上げ
+  access.log.7.gz → 削除（7世代を超えたものは自動削除）
+  （新しい空の access.log を作成）
+
+→ 常に最新7日分だけが残る状態を自動維持できる
+```
+
+```bash
+# logrotate の設定ファイルを確認
+cat /etc/logrotate.d/apache2   # Apacheのログローテーション設定
+
+# 設定例（/etc/logrotate.d/apache2）
+# /var/log/apache2/*.log {
+#     daily          # 毎日ローテーション
+#     missingok      # ファイルがなくてもエラーにしない
+#     rotate 7       # 7世代分保持（7日分）
+#     compress       # 古いログを gzip 圧縮
+#     delaycompress  # 直前のログは圧縮しない（プロセスが書き込み中の可能性）
+#     notifempty     # 空ファイルはローテーションしない
+#     sharedscripts
+#     postrotate     # ローテーション後に Apache に新しいログファイルを開かせる
+#         /etc/init.d/apache2 reload > /dev/null
+#     endscript
+# }
+
+# 手動で即時実行（テスト用）
+sudo logrotate -f /etc/logrotate.d/apache2   # -f: 強制実行
+
+# 設定の確認（実際には実行しない dry-run）
+sudo logrotate -d /etc/logrotate.conf        # -d: デバッグ（確認のみ）
+```
+
+---
+
+## 🛠️ ハンズオン演習：ディスクフル障害を再現して復旧手順を確立する
+
+今週のハンズオンは「深夜に来た実際の障害」を手元で再現し、復旧の流れを身体で覚えることが目的。
+
+```bash
+# スクリプトを実行するだけで Step1〜6 が順番に走る
+chmod +x hands-on/08_disk_management.sh
+bash hands-on/08_disk_management.sh
+```
+
+**各 Step の概要：**
+
+| Step | 内容 |
+|------|------|
+| Step1 | `df -h` でディスク全体の使用状況を確認 |
+| Step2 | `du` でどのディレクトリが容量を使っているか特定 |
+| Step3 | `dd` で 500MB のダミーファイルを作成してディスク変化を確認 |
+| Step3.5 | **lsof 体験**：rm しても df が減らない現象を実際に確認 |
+| Step4 | ダミーファイル削除・古いログの削除候補を確認 |
+| Step5 | Apache の状態確認と再起動 |
+| Step6 | 佐藤さんへの障害対応報告テンプレを出力 |
+
+> **Step3.5 が今週の肝です。**
+> `rm` したのに `df` が変わらない現象を実際に体験し、`lsof` で原因を特定して解放するまでを手を動かして確認してください。
+
+→ 詳細手順は `hands-on/08_disk_management.sh` を参照
 
 ---
 
