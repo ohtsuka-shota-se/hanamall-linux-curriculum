@@ -7,6 +7,8 @@ ECサイト「HanaMall」のインフラチームに入社した田中さんが
 
 👉 **https://ohtsuka-shota-se.github.io/hanamall-linux-curriculum/**
 
+カリキュラムビューアを見ながら、必要な資材は適宜curriculumから取得してください。
+
 ## 📁 構成
 
 ```
@@ -25,57 +27,6 @@ hanamall-linux-curriculum/
 └── .github/
     └── workflows/
         └── deploy.yml   # 自動ビルド・デプロイ
-```
-
-## 🚀 GitHub Pages セットアップ手順
-
-### 1. リポジトリ名に合わせて base を変更
-
-`viewer/vite.config.js` の `base` をリポジトリ名に合わせる：
-
-```js
-// リポジトリ名が hanamall-linux-curriculum の場合
-base: '/hanamall-linux-curriculum/',
-```
-
-### 2. GitHub Pages を有効化
-
-```
-リポジトリ → Settings → Pages
-→ Source: GitHub Actions
-→ Save
-```
-
-### 3. push するだけで自動デプロイ
-
-```bash
-git push origin main
-# → GitHub Actions が自動でビルド・デプロイ
-# → 数分後に Pages URL でビューアが表示される
-```
-
-## 💻 ローカルで開発する
-
-```bash
-cd viewer
-npm install
-npm run dev
-# → http://localhost:5173 でビューアが開く
-```
-
-## 🔄 カリキュラムを更新したときの手順
-
-```bash
-# 1. curriculum/ 以下のREADMEを編集
-
-# 2. viewer/src/App.jsx の README_DATA を更新
-#    （Claudeとのチャットで cv*.jsx を生成してコピー）
-
-# 3. push
-git add .
-git commit -m "update Week03 README"
-git push origin main
-# → 自動でPages が更新される
 ```
 
 ## 📚 カリキュラム内容
