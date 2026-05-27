@@ -1,0 +1,126 @@
+/* ================================================
+   テーマ変数定義
+   ダークモード（デフォルト） / ライトモード切り替え
+   ================================================ */
+
+/* Terminal カーソルアニメーション */
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ---- ダークテーマ（デフォルト） ---- */
+:root, [data-theme="dark"] {
+  /* 背景 */
+  --bg-base:    #020617;
+  --bg-surface: #0a0f1e;
+  --bg-card:    #0f172a;
+  --bg-alt:     #111827;
+  --bg-inset:   #0d1f2d;
+  --inset-bd:   #1e3a4a;
+  --bq-bg:      #1c1a10;
+
+  /* 境界線 */
+  --bd:         #1e293b;
+  --bd2:        #334155;
+
+  /* テキスト（明→暗） */
+  --t1:         #f1f5f9;
+  --t2:         #e2e8f0;
+  --t3:         #cbd5e1;
+  --t4:         #94a3b8;
+  --t5:         #64748b;
+  --t6:         #475569;
+  --t7:         #334155;
+
+  /* アクセント */
+  --accent:     #3b82f6;
+  --accent-b:   #0ea5e9;
+  --accent-c:   #38bdf8;
+  --amber:      #f59e0b;
+  --amber-t:    #fcd34d;
+
+  /* Phase 1 - 緑 */
+  --p1-bg:    #1e3a2f; --p1-bd:  #2d6a4f; --p1-badge: #40916c; --p1-t: #b7e4c7;
+  /* Phase 2 - 青 */
+  --p2-bg:    #1a2e4a; --p2-bd:  #1d4e89; --p2-badge: #2563eb; --p2-t: #bfdbfe;
+  /* Phase 3 - 紫 */
+  --p3-bg:    #2d1b4e; --p3-bd:  #6b21a8; --p3-badge: #9333ea; --p3-t: #e9d5ff;
+  /* Phase 4 - 赤 */
+  --p4-bg:    #3d1a1a; --p4-bd:  #991b1b; --p4-badge: #dc2626; --p4-t: #fecaca;
+
+  /* インラインコード（ダーク：シアン文字） */
+  --inline-code-bg:    var(--bd);
+  --inline-code-color: #7dd3fc;
+}
+
+/* ---- ライトテーマ ---- */
+[data-theme="light"] {
+  /* 背景 */
+  --bg-base:    #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-card:    #f1f5f9;
+  --bg-alt:     #e2e8f0;
+  --bg-inset:   #e0f2fe;
+  --inset-bd:   #bae6fd;
+  --bq-bg:      #fffbeb;
+
+  /* 境界線 */
+  --bd:         #e2e8f0;
+  --bd2:        #cbd5e1;
+
+  /* テキスト（明→暗 が反転）*/
+  --t1:         #0f172a;
+  --t2:         #1e293b;
+  --t3:         #334155;
+  --t4:         #475569;
+  --t5:         #64748b;
+  --t6:         #94a3b8;
+  --t7:         #64748b;
+
+  /* アクセント */
+  --accent:     #2563eb;
+  --accent-b:   #0284c7;
+  --accent-c:   #0369a1;
+  --amber:      #d97706;
+  --amber-t:    #92400e;
+
+  /* Phase 1 - 緑 */
+  --p1-bg:    #dcfce7; --p1-bd:  #86efac; --p1-badge: #16a34a; --p1-t: #14532d;
+  /* Phase 2 - 青 */
+  --p2-bg:    #dbeafe; --p2-bd:  #93c5fd; --p2-badge: #1d4ed8; --p2-t: #1e3a8a;
+  /* Phase 3 - 紫 */
+  --p3-bg:    #f3e8ff; --p3-bd:  #d8b4fe; --p3-badge: #7c3aed; --p3-t: #4c1d95;
+  /* Phase 4 - 赤 */
+  --p4-bg:    #fee2e2; --p4-bd:  #fca5a5; --p4-badge: #dc2626; --p4-t: #7f1d1d;
+
+  /* インラインコード（ライト：濃い青文字 + やや濃いグレー背景） */
+  --inline-code-bg:    #dde3ea;
+  --inline-code-color: #0369a1;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+}
+
+/* scrollbar（ダーク/ライト両対応） */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--t7); }
+
+/* テーマ切り替えボタン */
+.theme-btn {
+  background: none;
+  border: 1px solid var(--bd);
+  color: var(--t4);
+  cursor: pointer;
+  font-size: .82em;
+  padding: 4px 10px;
+  border-radius: 5px;
+  transition: border-color .15s, color .15s;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.theme-btn:hover {
+  border-color: var(--t4);
+  color: var(--t2);
+}
