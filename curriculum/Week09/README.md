@@ -403,8 +403,22 @@ Week12 の総仕上げでこの設定が必要になるので、仕組みを押�
 
 ## 📝 今週の課題
 
-1. Apacheのバージョンを確認し、`apt-mark hold` で固定する。`sudo apt upgrade` を実行して更新されないことを確認する
-2. Week07 で作ったバックアップスクリプトを systemd サービスとして登録し、`sudo systemctl start` で動くことを確認する
-3. そのサービスを systemd タイマーで毎日深夜2時に起動するよう設定し、`systemctl list-timers` で次回実行時刻が表示されることを確認する
-4. `journalctl -u hanamall-healthcheck --since today` でログを確認する
-5. **思考問題:** `systemd` サービスに `Restart=on-failure` を設定したとき、「無限ループのバグがあるスクリプト」をサービスにしたらどうなるか？`RestartSec` と組み合わせてどう設計すべきか答えよ
+### 大問1. パッケージのバージョン固定
+
+Apacheのバージョンを確認し、`apt-mark hold` で固定する。`sudo apt upgrade` を実行して更新されないことを確認する
+
+### 大問2. systemdサービスの登録
+
+Week07 で作ったバックアップスクリプトを systemd サービスとして登録し、`sudo systemctl start` で動くことを確認する
+
+### 大問3. systemdタイマーの設定
+
+そのサービスを systemd タイマーで毎日深夜2時に起動するよう設定し、`systemctl list-timers` で次回実行時刻が表示されることを確認する
+
+### 大問4. ジャーナルログの確認
+
+`journalctl -u hanamall-healthcheck --since today` でログを確認する
+
+### 大問5. 思考問題
+
+`systemd` サービスに `Restart=on-failure` を設定したとき、「無限ループのバグがあるスクリプト」をサービスにしたらどうなるか？`RestartSec` と組み合わせてどう設計すべきか答えよ

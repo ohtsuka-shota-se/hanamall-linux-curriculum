@@ -207,8 +207,22 @@ crontab -e  # 追加した行を消す
 
 ## 📝 今週の課題
 
-1. 公開鍵認証を設定し、`ssh -o PasswordAuthentication=no localhost` でパスワードなしでログインできることを確認する
-2. `~/.ssh/config` に接続先を登録して `ssh dev01` だけで繋がるようにする（`ssh -v dev01` でconfig が使われていることを確認）
-3. `sshd_config` でrootログインとパスワード認証を無効化する。**必ず別ターミナルで公開鍵ログインが通ることを確認してから変更すること**
-4. 「毎日23時に `/tmp/test_backup/` をtarで固める」cronジョブを設定し、`crontab -l` でジョブが登録されていることを確認する
-5. **思考問題:** 設定した後に `sudo grep "Failed password" /var/log/auth.log` を実行したとき、どんなIPアドレスが出てくるか予想してみよ。なぜそうなるのか説明せよ
+### 大問1. 公開鍵認証の設定
+
+公開鍵認証を設定し、`ssh -o PasswordAuthentication=no localhost` でパスワードなしでログインできることを確認する
+
+### 大問2. SSH config の設定
+
+`~/.ssh/config` に接続先を登録して `ssh dev01` だけで繋がるようにする（`ssh -v dev01` でconfigが使われていることを確認）
+
+### 大問3. SSHセキュリティ強化
+
+`sshd_config` でrootログインとパスワード認証を無効化する。**必ず別ターミナルで公開鍵ログインが通ることを確認してから変更すること**
+
+### 大問4. cronジョブの設定
+
+「毎日23時に `/tmp/test_backup/` をtarで固める」cronジョブを設定し、`crontab -l` でジョブが登録されていることを確認する
+
+### 大問5. 思考問題
+
+設定した後に `sudo grep "Failed password" /var/log/auth.log` を実行したとき、どんなIPアドレスが出てくるか予想してみよ。なぜそうなるのか説明せよ

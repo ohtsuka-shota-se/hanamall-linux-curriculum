@@ -192,8 +192,22 @@ docker-compose down -v          # ボリュームも削除
 
 ## 📝 今週の課題
 
-1. AWS EC2（無料枠）にUbuntuを立て、SSHでログインしてApacheをインストールする（Week06で学んだ公開鍵認証を使うこと）
-2. Dockerで `httpd:2.4`（Apache）コンテナを起動してブラウザからアクセスする
-3. `hands-on/Dockerfile` を参考に、HanaMallのHTMLを乗せたイメージを自力でビルドする
-4. docker-compose で Apache + MySQL を2コンテナ構成で起動し、`docker-compose ps` で両方が `Up` になることを確認する
-5. **思考問題:** 「本番をDockerに移行すべきか」という議論が社内で起きた。あなたならどんな観点で判断するか。メリット・デメリットを各2つずつ挙げよ
+### 大問1. EC2へのApacheインストール
+
+AWS EC2（無料枠）にUbuntuを立て、SSHでログインしてApacheをインストールする（Week06で学んだ公開鍵認証を使うこと）
+
+### 大問2. Dockerコンテナの起動
+
+Dockerで `httpd:2.4`（Apache）コンテナを起動してブラウザからアクセスする
+
+### 大問3. Dockerfileによるイメージビルド
+
+`hands-on/Dockerfile` を参考に、HanaMallのHTMLを乗せたイメージを自力でビルドする
+
+### 大問4. docker-compose による複数コンテナ構成
+
+docker-compose で Apache + MySQL を2コンテナ構成で起動し、`docker-compose ps` で両方が `Up` になることを確認する
+
+### 大問5. 思考問題
+
+「本番をDockerに移行すべきか」という議論が社内で起きた。あなたならどんな観点で判断するか。メリット・デメリットを各2つずつ挙げよ
