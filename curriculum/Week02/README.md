@@ -9,7 +9,7 @@
 ```bash
 # サーバーにSSHログイン後、リポジトリをclone
 git clone https://github.com/ohtsuka-shota-se/hanamall-linux-curriculum.git
-cd linux-curriculum/Week02
+cd hanamall-linux-curriculum/Week02
 
 # 使用するファイルを確認
 ls data/
