@@ -192,22 +192,49 @@ docker-compose down -v          # ボリュームも削除
 
 ## 📝 今週の課題
 
-### 大問1. EC2へのApacheインストール
+### 大問1. AWS EC2（無料枠）にUbuntuを立て、以下をすべて実施せよ
 
-AWS EC2（無料枠）にUbuntuを立て、SSHでログインしてApacheをインストールする（Week06で学んだ公開鍵認証を使うこと）
+AWS EC2（無料枠）にUbuntuを立て、以下をすべて実施せよ
+   - Week06 で学んだ公開鍵認証でSSHログイン
+   - `~/.ssh/config` に EC2 を登録して `ssh myec2` で繋がるようにする
+   - セキュリティグループで SSH(22) は自分のIPのみ・HTTP(80) は全公開に設定する
+   - Apache をインストールしてブラウザからアクセスできることを確認
 
-### 大問2. Dockerコンテナの起動
+### 大問2. Docker で httpd:2.4 コンテナを起動し、以下を確認せよ
 
-Dockerで `httpd:2.4`（Apache）コンテナを起動してブラウザからアクセスする
+Docker で `httpd:2.4` コンテナを起動し、以下を確認せよ
+   - `docker ps` でポートマッピングを確認
+   - `docker logs myapache` でアクセスログを確認
+   - `docker exec -it myapache bash` でコンテナ内に入り、Apache の設定ファイルの場所を確認
 
-### 大問3. Dockerfileによるイメージビルド
+### 大問3. hands-on/Dockerfile を読んで内容を理解した上で、以下を変更したイメージを自力でビルドせよ
 
-`hands-on/Dockerfile` を参考に、HanaMallのHTMLを乗せたイメージを自力でビルドする
+`hands-on/Dockerfile` を読んで内容を理解した上で、以下を変更したイメージを自力でビルドせよ
+   - HanaMall のHTMLを差し替える
+   - ビルドして `docker run` で起動・ブラウザ確認
+   - イメージサイズを `docker images` で確認し、`ubuntu:22.04` ベースと `httpd:2.4` ベースで何が違うか答えよ
 
-### 大問4. docker-compose による複数コンテナ構成
+### 大問4. hands-on/docker-compose.yml を使って Apache + MySQL を起動し、以下を確認せよ
 
-docker-compose で Apache + MySQL を2コンテナ構成で起動し、`docker-compose ps` で両方が `Up` になることを確認する
+`hands-on/docker-compose.yml` を使って Apache + MySQL を起動し、以下を確認せよ
+   - `docker-compose ps` で両コンテナが `Up` であること
+   - `docker-compose logs -f web` でリアルタイムログ監視
+   - `docker-compose down` と `docker-compose down -v` の違いを確認して説明せよ
 
-### 大問5. 思考問題
+### 大問5. コンテナ内の Apache に対して以下の調査を実施せよ
 
-「本番をDockerに移行すべきか」という議論が社内で起きた。あなたならどんな観点で判断するか。メリット・デメリットを各2つずつ挙げよ
+コンテナ内の Apache に対して以下の調査を実施せよ
+   ```bash
+   docker exec myapache ps aux
+   docker exec myapache df -h
+   docker stats myapache
+   ```
+   `docker stats` の出力から「CPUとメモリの使用状況」を読んで報告せよ
+
+### 大問6. EC2 上に Docker をインストールし、docker-compose up -d でHanaMall環境を立ち上げて外部からアクセスできることを確認せよ
+
+EC2 上に Docker をインストールし、`docker-compose up -d` でHanaMall環境を立ち上げて外部からアクセスできることを確認せよ
+
+### 大問7. 思考問題: 「本番をDockerに移行すべきか」という議論が社内で起きた。メリット・デメリットを各2つ挙げ、「どんな条件が揃ったら移行を推奨するか」を答えよ
+
+**思考問題:** 「本番をDockerに移行すべきか」という議論が社内で起きた。メリット・デメリットを各2つ挙げ、「どんな条件が揃ったら移行を推奨するか」を答えよ

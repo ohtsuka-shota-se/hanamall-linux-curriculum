@@ -258,22 +258,39 @@ kill [PID]
 
 ## 📝 今週の課題
 
-### 大問1. ユーザー作成・グループ追加
+### 大問1. 以下の要件でユーザーとグループを設定せよ
 
-`devuser` を作成し `developers` グループに追加する
+以下の要件でユーザーとグループを設定せよ
+   - ユーザー `suzuki`（開発チーム）: `dev_team` グループ、sudo は `apache2 の再起動のみ` 許可
+   - ユーザー `yamada`（閲覧のみ）: `viewers` グループ、sudo 権限なし
+   - 設定後に `id suzuki` と `id yamada` の出力を提出すること
 
-### 大問2. sudo権限の限定設定
+### 大問2. yes > /dev/null & を3つ同時に起動し、top でCPU使用率が上昇することを確認してから全て kill せよ。pkill を使う方法と kill で個別に止める方法の両方を試して、それぞれのコマンドを記録せよ
 
-`devuser` は `systemctl restart apache2` だけ sudo できるように設定する
+`yes > /dev/null &` を3つ同時に起動し、`top` でCPU使用率が上昇することを確認してから全て `kill` せよ。**`pkill` を使う方法と `kill` で個別に止める方法の両方**を試して、それぞれのコマンドを記録せよ
 
-### 大問3. プロセス管理
+### 大問3. sudo grep "sudo" /var/log/auth.log で今日の sudo 実行履歴を確認し、「誰が・いつ・何のコマンドを実行したか」を表形式でまとめよ
 
-`yes > /dev/null &` でCPUを100%にしてから `top` で見つけて `kill` する
+`sudo grep "sudo" /var/log/auth.log` で今日の sudo 実行履歴を確認し、「誰が・いつ・何のコマンドを実行したか」を表形式でまとめよ
 
-### 大問4. 認証ログ調査
+### 大問4. ps aux の出力から www-data ユーザーで動いているプロセスをすべて抽出し、それが何のサービスか答えよ
 
-`auth.log` からsudoの実行履歴を抽出する
+`ps aux` の出力から `www-data` ユーザーで動いているプロセスをすべて抽出し、それが何のサービスか答えよ
 
-### 大問5. 思考問題
+### 大問5. systemctl list-units --type=service --state=failed を実行し、failed なサービスがあれば journalctl -u サービス名 -n 20 でエラーの原因を調べて報告せよ
 
-「全員が同じ `deploy` ユーザーでサーバーにログインして作業する」運用をしているチームがあったとする。どんなリスクがあるか？具体的なトラブルシナリオを1つ挙げて説明せよ
+`systemctl list-units --type=service --state=failed` を実行し、failed なサービスがあれば `journalctl -u サービス名 -n 20` でエラーの原因を調べて報告せよ
+
+### 大問6. suzuki アカウントに切り替えて以下を確認せよ
+
+**suzuki アカウントに切り替えて以下を確認せよ**
+   ```bash
+   su - suzuki
+   sudo systemctl restart apache2   # → 通るはず
+   sudo reboot                       # → 弾かれるはず
+   ```
+   それぞれの結果と、なぜそうなるかを説明せよ
+
+### 大問7. 思考問題: あるサーバーで root 宛の SSH ログイン試行が1日に数千件記録されていた。PermitRootLogin no に設定してあれば安全と言えるか？さらに実施すべきセキュリティ対策を2つ挙げよ
+
+**思考問題:** あるサーバーで `root` 宛の SSH ログイン試行が1日に数千件記録されていた。`PermitRootLogin no` に設定してあれば安全と言えるか？さらに実施すべきセキュリティ対策を2つ挙げよ

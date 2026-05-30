@@ -207,22 +207,60 @@ crontab -e  # 追加した行を消す
 
 ## 📝 今週の課題
 
-### 大問1. 公開鍵認証の設定
+### 大問1. 公開鍵認証を設定し、以下をすべて確認せよ
 
-公開鍵認証を設定し、`ssh -o PasswordAuthentication=no localhost` でパスワードなしでログインできることを確認する
+公開鍵認証を設定し、以下をすべて確認せよ
+   - `ssh -o PasswordAuthentication=no localhost` でパスワードなしログイン
+   - `~/.ssh/` の各ファイルのパーミッションが正しいこと（`ls -la ~/.ssh/`）
+   - `ssh -v localhost` の出力から「どの鍵ファイルが使われたか」を確認して報告せよ
 
-### 大問2. SSH config の設定
+### 大問2. ~/.ssh/config に以下を設定し、動作確認せよ
 
-`~/.ssh/config` に接続先を登録して `ssh dev01` だけで繋がるようにする（`ssh -v dev01` でconfigが使われていることを確認）
+`~/.ssh/config` に以下を設定し、動作確認せよ
+   ```
+   Host dev01
+       HostName localhost
+       User ubuntu
+       IdentityFile ~/.ssh/id_ed25519
+       ServerAliveInterval 60
+   ```
+   - `ssh dev01` で接続できることを確認
+   - `ServerAliveInterval` の意味を調べて説明せよ
 
-### 大問3. SSHセキュリティ強化
+### 大問3. sshd_config で以下を設定し、それぞれ意図通りに動くことを確認せよ
 
-`sshd_config` でrootログインとパスワード認証を無効化する。**必ず別ターミナルで公開鍵ログインが通ることを確認してから変更すること**
+`sshd_config` で以下を設定し、それぞれ意図通りに動くことを確認せよ
+   - `PermitRootLogin no`（rootでのSSHログインを試みて弾かれることを確認）
+   - `PasswordAuthentication no`（**必ず別ターミナルで鍵認証が通ることを確認してから設定すること**）
+   - `MaxAuthTries 3`
 
-### 大問4. cronジョブの設定
+### 大問4. 以下のcronジョブを設定し、crontab -l で登録を確認せよ
 
-「毎日23時に `/tmp/test_backup/` をtarで固める」cronジョブを設定し、`crontab -l` でジョブが登録されていることを確認する
+以下のcronジョブを設定し、`crontab -l` で登録を確認せよ
+   - 毎日23時に `/tmp/test_backup/` を tar で固める
+   - 毎5分に `date >> /tmp/cron_test.log` を実行する（動作確認用）
+   - 5分後に `/tmp/cron_test.log` に記録されていることを確認せよ
 
-### 大問5. 思考問題
+### 大問5. sudo grep "Accepted\|Failed" /var/log/auth.log | tail -20 を実行し、以下をまとめよ
 
-設定した後に `sudo grep "Failed password" /var/log/auth.log` を実行したとき、どんなIPアドレスが出てくるか予想してみよ。なぜそうなるのか説明せよ
+`sudo grep "Accepted\|Failed" /var/log/auth.log | tail -20` を実行し、以下をまとめよ
+   - ログイン成功・失敗の件数
+   - 失敗が多いIPがあれば「対処すべきか」の判断と理由
+
+### 大問6. rsync で安全なファイル転送を体験せよ
+
+**rsync で安全なファイル転送を体験せよ**
+   ```bash
+   mkdir -p /tmp/src /tmp/dst
+   echo "test" > /tmp/src/file1.txt
+   rsync -av /tmp/src/ /tmp/dst/
+   # ファイルを削除して --delete の挙動を確認
+   rm /tmp/src/file1.txt
+   rsync -av --dry-run --delete /tmp/src/ /tmp/dst/
+   rsync -av --delete /tmp/src/ /tmp/dst/
+   ```
+   `--dry-run` を使う理由を説明せよ
+
+### 大問7. 思考問題: SSH の公開鍵が ~/.ssh/authorized_keys に登録されているサーバーで、秘密鍵（id_ed25519）を誤って外部に公開してしまった。直ちに取るべき対応を手順付きで答えよ
+
+**思考問題:** SSH の公開鍵が `~/.ssh/authorized_keys` に登録されているサーバーで、秘密鍵（`id_ed25519`）を誤って外部に公開してしまった。直ちに取るべき対応を手順付きで答えよ
