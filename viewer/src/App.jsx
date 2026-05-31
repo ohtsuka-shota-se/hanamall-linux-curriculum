@@ -313,6 +313,14 @@ function MD({ content, weekKey }) {
 // Additional シナリオデータ
 // ============================================================
 const ADDITIONAL_NAV = {
+  WEB: {
+    label: "🌐 オリジナルWebサイト",
+    children: [
+      { key: "WEB_html",    label: "📄 HTML作成" },
+      { key: "WEB_css",     label: "🎨 CSS装飾" },
+      { key: "WEB_publish", label: "🚀 複数ページ化・公開" },
+    ],
+  },
   LAMP: {
     label: "🖥️ LAMP構成",
     children: [
@@ -349,6 +357,16 @@ const ADDITIONAL_NAV = {
 };
 
 const ADDITIONAL_SCENARIOS = [
+  {
+    id: "WEB",
+    title: "オリジナルWebサイト作成",
+    icon: "🌐",
+    description: "Apache のデフォルトページを HTML・CSS で書き換えて、自分だけのポートフォリオサイトを公開する。Week05 の発展演習。",
+    difficulty: "初級",
+    servers: ["HTML", "CSS", "Apache"],
+    bg: "var(--p1-bg)", bd: "var(--p1-bd)", badge: "var(--p1-badge)"
+  },
+
   {
     id: "LAMP",
     title: "LAMP構成",
@@ -412,6 +430,42 @@ function ScenarioList({ onSelect }) {
                 <span key={sv} style={{fontSize:".7em",background:"var(--bg-card)",color:s.badge,padding:"2px 8px",borderRadius:4,border:"1px solid "+s.bd}}>{sv}</span>
               ))}
               <span style={{fontSize:".7em",color:"var(--t6)",marginLeft:"auto"}}>難易度: {s.difficulty}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WebOverview({ onSelect }) {
+  const steps = [
+    { key:"WEB_html",    num:"01", icon:"📄", title:"HTMLでページを作る",      desc:"デフォルトページを書き換えて自分のトップページを作成する" },
+    { key:"WEB_css",     num:"02", icon:"🎨", title:"CSSでデザインを整える",   desc:"スタイルシートを作ってプロらしい見た目に仕上げる" },
+    { key:"WEB_publish", num:"03", icon:"🚀", title:"複数ページ化して公開する", desc:"スキル・連絡先ページを追加して本格的なサイトにする" },
+  ];
+  return (
+    <div style={{padding:"36px 40px 56px",maxWidth:900,margin:"0 auto"}}>
+      <div style={{marginBottom:28}}>
+        <button onClick={()=>onSelect("ADDITIONAL")} style={{background:"none",border:"none",color:"var(--t5)",cursor:"pointer",fontSize:".82em",padding:0,marginBottom:10}}>← シナリオ一覧</button>
+        <h1 style={{fontSize:"1.6em",fontWeight:800,color:"var(--t1)",margin:"0 0 6px"}}>🌐 オリジナルWebサイト作成</h1>
+        <p style={{color:"var(--t5)",fontSize:".88em",margin:0}}>Week05 で構築した Apache を使って、HTML・CSS で自分だけのポートフォリオサイトを公開しよう。</p>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {steps.map((s,i)=>(
+          <div key={s.key} style={{display:"flex",alignItems:"stretch",gap:0}}>
+            {i>0&&<div style={{width:3,background:"var(--bd)",margin:"0 0 0 28px",borderRadius:2,flexShrink:0,display:"none"}}/>}
+            <div onClick={()=>onSelect(s.key)}
+              style={{flex:1,background:"var(--bg-card)",border:"1px solid var(--bd)",borderRadius:10,padding:"20px 24px",cursor:"pointer",display:"flex",alignItems:"center",gap:20,transition:"transform .15s,box-shadow .15s"}}
+              onMouseEnter={e=>{e.currentTarget.style.transform="translateX(4px)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.2)";}}
+              onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
+              <div style={{width:52,height:52,borderRadius:"50%",background:"var(--p1-bg)",border:"2px solid var(--p1-bd)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.5em",flexShrink:0}}>{s.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:".7em",fontWeight:700,color:"var(--p1-badge)",marginBottom:3}}>STEP {s.num}</div>
+                <div style={{fontSize:"1em",fontWeight:700,color:"var(--t1)",marginBottom:4}}>{s.title}</div>
+                <div style={{fontSize:".83em",color:"var(--t5)"}}>{s.desc}</div>
+              </div>
+              <div style={{fontSize:".75em",color:"var(--accent)",fontWeight:600}}>手順を見る →</div>
             </div>
           </div>
         ))}
@@ -839,13 +893,16 @@ export default function App() {
   const current = WEEKS.find(w=>w.key===selected);
   const grouped = [null,1,2,3,4].map(phase=>({phase,items:phase===null?WEEKS.filter(w=>!w.phase):WEEKS.filter(w=>w.phase===phase)}));
   const additionalParent = Object.entries(ADDITIONAL_NAV).find(([,v])=>v.children.some(c=>c.key===selected))?.[0]??null;
-  const isAdditional = selected==="LAMP"||selected?.startsWith("LAMP_")||selected==="DNS"||selected?.startsWith("DNS_")||selected==="ZABBIX"||selected?.startsWith("ZABBIX_");
+  const isAdditional = selected==="WEB"||selected?.startsWith("WEB_")||selected==="LAMP"||selected?.startsWith("LAMP_")||selected==="DNS"||selected?.startsWith("DNS_")||selected==="ZABBIX"||selected?.startsWith("ZABBIX_");
   const ALL = ["STORY",...WEEKS.map(w=>w.key),"ADDITIONAL"];
   const ci = isAdditional?-1:ALL.indexOf(selected);
-  const prevKey = !isAdditional&&ci>0?ALL[ci-1]:null;
-  const nextKey = !isAdditional&&ci<ALL.length-1?ALL[ci+1]:null;
-  const pLabel = prevKey==="STORY"?"🗺 ストーリー":prevKey==="ADDITIONAL"?"📦 サーバー構築シナリオ":WEEKS.find(w=>w.key===prevKey)?.label;
-  const nLabel = nextKey==="STORY"?"🗺 ストーリー":nextKey==="ADDITIONAL"?"📦 サーバー構築シナリオ":WEEKS.find(w=>w.key===nextKey)?.label;
+  const addSiblings = additionalParent?ADDITIONAL_NAV[additionalParent].children:[];
+  const addIdx = addSiblings.findIndex(c=>c.key===selected);
+  const prevKey = additionalParent?(addIdx>0?addSiblings[addIdx-1].key:null):(!isAdditional&&ci>0?ALL[ci-1]:null);
+  const nextKey = additionalParent?(addIdx<addSiblings.length-1?addSiblings[addIdx+1].key:null):(!isAdditional&&ci<ALL.length-1?ALL[ci+1]:null);
+  const pLabel = additionalParent?addSiblings[addIdx-1]?.label:(prevKey==="STORY"?"🗺 ストーリー":prevKey==="ADDITIONAL"?"📦 サーバー構築シナリオ":WEEKS.find(w=>w.key===prevKey)?.label);
+  const nLabel = additionalParent?addSiblings[addIdx+1]?.label:(nextKey==="STORY"?"🗺 ストーリー":nextKey==="ADDITIONAL"?"📦 サーバー構築シナリオ":WEEKS.find(w=>w.key===nextKey)?.label);
+  const counter = additionalParent?`${addIdx+1} / ${addSiblings.length}`:`${ci+1} / ${ALL.length}`;
 
   return (
     <div style={{display:"flex",height:"100vh",background:"var(--bg-base)",fontFamily:"'Noto Sans JP','Inter',sans-serif",color:"var(--t2)"}}>
@@ -913,6 +970,8 @@ export default function App() {
             ?<StoryMap onSelect={setSelected}/>
             :selected==="ADDITIONAL"
             ?<ScenarioList onSelect={setSelected}/>
+            :selected==="WEB"
+            ?<WebOverview onSelect={setSelected}/>
             :selected==="LAMP"
             ?<ArchDiagram scenarioId="LAMP" onSelect={setSelected}/>
             :selected==="DNS"
@@ -947,7 +1006,7 @@ export default function App() {
         </div>
         <div style={{height:46,background:"var(--bg-surface)",borderTop:"1px solid var(--bd)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 22px",flexShrink:0}}>
           <button onClick={()=>prevKey&&setSelected(prevKey)} disabled={!prevKey} style={{background:"none",border:"1px solid var(--bd)",color:prevKey?"var(--t4)":"var(--bd)",padding:"4px 13px",borderRadius:5,cursor:prevKey?"pointer":"default",fontSize:".78em"}}>← {pLabel??""}</button>
-          <span style={{fontSize:".7em",color:"var(--t7)"}}>{ci+1} / {ALL.length}</span>
+          <span style={{fontSize:".7em",color:"var(--t7)"}}>{counter}</span>
           <button onClick={()=>nextKey&&setSelected(nextKey)} disabled={!nextKey} style={{background:"none",border:"1px solid var(--bd)",color:nextKey?"var(--t4)":"var(--bd)",padding:"4px 13px",borderRadius:5,cursor:nextKey?"pointer":"default",fontSize:".78em"}}>{nLabel??""} →</button>
         </div>
       </div>
