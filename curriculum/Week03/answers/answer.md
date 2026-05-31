@@ -117,3 +117,66 @@ exit
 
 2. **fail2ban を導入して自動IPブロックを行う**  
    一定回数失敗したIPを自動的にブロックし、大量試行を防ぐ。
+
+---
+
+## 📊 参考：systemd と journald の関係図
+
+```mermaid
+flowchart TD
+    subgraph KERNEL["🐧 カーネル空間"]
+        K[kernel messages\ndmesg]
+    end
+
+    subgraph SYSTEMD_WORLD["⚙️ systemd (PID 1) — 全プロセスの親"]
+        direction TB
+        SD[systemd\nサービス管理・起動制御]
+
+        subgraph SERVICES["管理下のサービス"]
+            SVC1[apache2.service]
+            SVC2[ssh.service]
+            SVC3[hanamall-backup.service]
+            SVCN[... その他]
+        end
+
+        JD[systemd-journald\nログ収集デーモン]
+        SD -->|起動・監視| SERVICES
+        SD -->|起動・監視| JD
+    end
+
+    subgraph OTHER_SOURCES["その他のログ発生源"]
+        APP[アプリ\nstdout/stderr]
+        AUTH[認証ログ\n/dev/log経由]
+        CRON[cron\nsyslog経由]
+    end
+
+    subgraph STORAGE["💾 ログ保存先"]
+        JSTORE["/run/log/journal/（揮発）\nまたは\n/var/log/journal/（永続・要設定）"]
+        SYSLOG["/var/log/syslog\n/var/log/auth.log\n（rsyslog 経由）"]
+    end
+
+    subgraph QUERY["🔍 参照・分析"]
+        JC[journalctl\nフィルタ・検索]
+        CAT[cat / grep / tail\n従来のテキスト解析]
+    end
+
+    SERVICES -->|stdout/stderr| JD
+    K -->|kmsg| JD
+    APP -->|"/dev/log (socket)"| JD
+    AUTH -->|"/dev/log"| JD
+    CRON -->|"/dev/log"| JD
+
+    JD -->|バイナリ形式で保存| JSTORE
+    JD -->|転送（オプション）| SYSLOG
+
+    JSTORE -->|読み込み| JC
+    SYSLOG -->|読み込み| CAT
+```
+
+| 要素 | 役割 |
+|------|------|
+| **systemd (PID 1)** | 全サービスの親。起動・停止・監視を担う |
+| **systemd-journald** | systemdの子サービス。全ログを一元収集する |
+| **`/dev/log`** | アプリがログを書き込むソケット |
+| **`/var/log/journal/`** | journaldのバイナリ保存先（`journalctl` でしか読めない） |
+| **rsyslog経由** | 従来の `/var/log/syslog` へ転送する橋渡し役 |

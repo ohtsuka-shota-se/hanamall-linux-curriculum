@@ -1,4 +1,20 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+function MermaidBlock({ code }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const id = "mermaid-" + Math.random().toString(36).slice(2);
+    import("mermaid").then(({ default: mermaid }) => {
+      mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose" });
+      mermaid.render(id, code).then(({ svg }) => {
+        if (ref.current) ref.current.innerHTML = svg;
+      }).catch(() => {
+        if (ref.current) ref.current.textContent = code;
+      });
+    });
+  }, [code]);
+  return <div ref={ref} style={{ overflowX: "auto", margin: "12px 0" }} />;
+}
 
 import rootMd from '../../curriculum/README.md?raw';
 
@@ -264,7 +280,13 @@ function MD({ content, weekKey }) {
       case"h3":els.push(<h3 key={idx} style={{fontSize:".92em",fontWeight:700,color:"var(--t4)",margin:"14px 0 5px"}} dangerouslySetInnerHTML={{__html:fmt(tok.c)}}/>);break;
       case"h4":els.push(<div key={idx} style={{background:"var(--bg-inset)",border:"1px solid var(--inset-bd)",borderLeft:"3px solid var(--accent-b)",borderRadius:"0 6px 6px 0",padding:"9px 13px",margin:"12px 0 6px"}}><span style={{fontSize:".8em",fontWeight:700,color:"var(--accent-c)"}} dangerouslySetInnerHTML={{__html:"💡 "+fmt(tok.c)}}/></div>);break;
       case"bq":if(tok.c.trim())els.push(<blockquote key={idx} style={{borderLeft:"3px solid var(--amber)",background:"var(--bq-bg)",margin:"8px 0",padding:"9px 14px",color:"var(--amber-t)",borderRadius:"0 6px 6px 0",fontStyle:"italic",fontSize:".93em"}} dangerouslySetInnerHTML={{__html:fmt(tok.c)}}/>);break;
-      case"code":els.push(<pre key={idx} style={{background:"var(--bg-card)",border:"1px solid var(--bd)",borderRadius:7,padding:"13px 15px",overflowX:"auto",margin:"10px 0",fontSize:".79em",lineHeight:1.7}}><code style={{color:"var(--t2)",fontFamily:"'JetBrains Mono','Fira Code',monospace"}}>{tok.content}</code></pre>);break;
+      case"code":
+        if(tok.lang==="mermaid"){
+          els.push(<MermaidBlock key={idx} code={tok.content}/>);
+        } else {
+          els.push(<pre key={idx} style={{background:"var(--bg-card)",border:"1px solid var(--bd)",borderRadius:7,padding:"13px 15px",overflowX:"auto",margin:"10px 0",fontSize:".79em",lineHeight:1.7}}><code style={{color:"var(--t2)",fontFamily:"'JetBrains Mono','Fira Code',monospace"}}>{tok.content}</code></pre>);
+        }
+        break;
       case"table":els.push(<div key={idx} style={{overflowX:"auto",margin:"9px 0"}}><table style={{borderCollapse:"collapse",width:"100%",fontSize:".83em"}}><tbody>{tok.rows.map((row,ri)=><tr key={ri} style={{background:row.header?"var(--bd)":ri%2===0?"var(--bg-card)":"var(--bg-alt)"}}>{row.cells.map((cell,ci)=><td key={ci} style={{padding:"7px 11px",border:"1px solid var(--bd)",color:row.header?"var(--t4)":"var(--t3)",fontWeight:row.header?600:400}} dangerouslySetInnerHTML={{__html:fmt(cell)}}/>)}</tr>)}</tbody></table></div>);break;
       case"li":liB.push(tok.c);break;
       case"oli":oliB.push(tok.c);break;
