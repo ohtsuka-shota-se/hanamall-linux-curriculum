@@ -9,7 +9,7 @@
 ```bash
 # サーバーにSSHログイン後、リポジトリをclone
 git clone https://github.com/ohtsuka-shota-se/hanamall-linux-curriculum.git
-cd hanamall-linux-curriculum/Week02
+cd hanamall-linux-curriculum/curriculum/Week02
 
 # 使用するファイルを確認
 ls data/
@@ -224,7 +224,7 @@ grep "Failed password" data/syslog.sample | awk '{print $11}' | sort | uniq -c |
 
 ## 📝 今週の課題
 
-サーバーに git clone したリポジトリの `Week02/data/` を使って以下を実施せよ。
+サーバーに git clone したリポジトリの `curriculum/Week02/data/` を使って以下を実施せよ。
 
 ### 大問1. access.log の総行数を確認し、その中で 5xx 系エラーが何件あるか・全体の何%かを計算して報告せよ
 

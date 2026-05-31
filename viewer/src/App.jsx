@@ -312,6 +312,42 @@ function MD({ content, weekKey }) {
 // ============================================================
 // Additional シナリオデータ
 // ============================================================
+const ADDITIONAL_NAV = {
+  LAMP: {
+    label: "🖥️ LAMP構成",
+    children: [
+      { key: "LAMP_apache", label: "🌐 Apache" },
+      { key: "LAMP_php",    label: "⚙️ PHP" },
+      { key: "LAMP_mysql",  label: "🗄️ MySQL" },
+    ],
+  },
+  DNS: {
+    label: "🔍 内部DNS構成",
+    children: [
+      { key: "DNS_primary",   label: "🔍 プライマリDNS" },
+      { key: "DNS_secondary", label: "🔁 セカンダリDNS" },
+      { key: "DNS_verify",    label: "✅ 動作確認" },
+    ],
+  },
+  ZABBIX: {
+    label: "📊 Zabbix 監視基盤",
+    children: [
+      { key: "ZABBIX_server", label: "📊 Server 構築" },
+      { key: "ZABBIX_agent",  label: "🖥️ Agent 設定" },
+      { key: "ZABBIX_verify", label: "✅ 動作確認" },
+    ],
+  },
+  TOMCAT: {
+    label: "☕ Tomcat 構成",
+    children: [
+      { key: "TOMCAT_setup", label: "☕ インストール" },
+      { key: "TOMCAT_nginx", label: "🔀 Nginx リバースプロキシ" },
+      { key: "TOMCAT_mysql", label: "🗄️ MySQL 連携" },
+      { key: "TOMCAT_ops",   label: "🔧 運用・チューニング" },
+    ],
+  },
+};
+
 const ADDITIONAL_SCENARIOS = [
   {
     id: "LAMP",
@@ -780,14 +816,12 @@ function StoryMap({ onSelect }) {
               </div>
             </div>
           ))}
-          {/* Additional */}
-          <div style={{marginTop:8,borderTop:"1px solid var(--bd)",paddingTop:6}}>
-            <div style={{padding:"8px 14px 3px",fontSize:".64em",fontWeight:700,color:"var(--t6)",letterSpacing:".08em",textTransform:"uppercase"}}>📦 Additional</div>
-            <button onClick={()=>onSelect("ADDITIONAL")} style={{display:"block",width:"100%",textAlign:"left",background:"transparent",border:"none",borderLeft:"3px solid transparent",padding:"6px 14px 6px 12px",cursor:"pointer"}}>
-              <div style={{fontSize:".77em",fontWeight:700,color:"var(--t5)"}}>サーバー構築シナリオ</div>
-            </button>
-          </div>
         </div>
+      </div>
+      <div style={{marginTop:24,background:"var(--bg-surface)",border:"1px solid var(--accent-c)",borderRadius:12,padding:"20px 24px"}}>
+        <div style={{fontSize:".82em",fontWeight:700,color:"var(--accent-c)",marginBottom:10,textTransform:"uppercase",letterSpacing:".08em"}}>📦 サーバー構築シナリオ</div>
+        <p style={{fontSize:".88em",color:"var(--t5)",margin:"0 0 14px"}}>12週間を終えたら、実際のインフラ構成を想定したサーバー構築シナリオに挑戦しよう。</p>
+        <button onClick={()=>onSelect("ADDITIONAL")} style={{background:"var(--accent-c)",color:"#fff",border:"none",borderRadius:6,padding:"8px 20px",cursor:"pointer",fontSize:".84em",fontWeight:700}}>シナリオ一覧を見る →</button>
       </div>
     </div>
   );
@@ -804,13 +838,14 @@ export default function App() {
   useEffect(() => { if(scrollRef.current) scrollRef.current.scrollTop = 0; }, [selected]);
   const current = WEEKS.find(w=>w.key===selected);
   const grouped = [null,1,2,3,4].map(phase=>({phase,items:phase===null?WEEKS.filter(w=>!w.phase):WEEKS.filter(w=>w.phase===phase)}));
-  const isAdditional = selected==="ADDITIONAL"||selected==="LAMP"||selected?.startsWith("LAMP_")||selected==="DNS"||selected?.startsWith("DNS_")||selected==="ZABBIX"||selected?.startsWith("ZABBIX_");
-  const ALL = ["STORY",...WEEKS.map(w=>w.key)];
+  const additionalParent = Object.entries(ADDITIONAL_NAV).find(([,v])=>v.children.some(c=>c.key===selected))?.[0]??null;
+  const isAdditional = selected==="LAMP"||selected?.startsWith("LAMP_")||selected==="DNS"||selected?.startsWith("DNS_")||selected==="ZABBIX"||selected?.startsWith("ZABBIX_");
+  const ALL = ["STORY",...WEEKS.map(w=>w.key),"ADDITIONAL"];
   const ci = isAdditional?-1:ALL.indexOf(selected);
   const prevKey = !isAdditional&&ci>0?ALL[ci-1]:null;
   const nextKey = !isAdditional&&ci<ALL.length-1?ALL[ci+1]:null;
-  const pLabel = prevKey==="STORY"?"🗺 ストーリー":WEEKS.find(w=>w.key===prevKey)?.label;
-  const nLabel = nextKey==="STORY"?"🗺 ストーリー":WEEKS.find(w=>w.key===nextKey)?.label;
+  const pLabel = prevKey==="STORY"?"🗺 ストーリー":prevKey==="ADDITIONAL"?"📦 サーバー構築シナリオ":WEEKS.find(w=>w.key===prevKey)?.label;
+  const nLabel = nextKey==="STORY"?"🗺 ストーリー":nextKey==="ADDITIONAL"?"📦 サーバー構築シナリオ":WEEKS.find(w=>w.key===nextKey)?.label;
 
   return (
     <div style={{display:"flex",height:"100vh",background:"var(--bg-base)",fontFamily:"'Noto Sans JP','Inter',sans-serif",color:"var(--t2)"}}>
@@ -887,6 +922,25 @@ export default function App() {
             :selected==="TOMCAT"
             ?<TomcatDiagram onSelect={setSelected}/>
             :<div style={{padding:"22px 30px 48px"}}><div style={{maxWidth:820,margin:"0 auto"}}>
+              {additionalParent&&(
+                <div style={{marginBottom:20}}>
+                  <div style={{fontSize:".78em",color:"var(--t5)",marginBottom:10,display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+                    <button onClick={()=>setSelected("ADDITIONAL")} style={{background:"none",border:"none",color:"var(--accent-c)",cursor:"pointer",padding:0,fontSize:"inherit",fontWeight:600}}>📦 シナリオ一覧</button>
+                    <span style={{color:"var(--t7)"}}>›</span>
+                    <button onClick={()=>setSelected(additionalParent)} style={{background:"none",border:"none",color:"var(--accent-c)",cursor:"pointer",padding:0,fontSize:"inherit",fontWeight:600}}>{ADDITIONAL_NAV[additionalParent].label}</button>
+                    <span style={{color:"var(--t7)"}}>›</span>
+                    <span style={{color:"var(--t2)",fontWeight:600}}>{ADDITIONAL_NAV[additionalParent].children.find(c=>c.key===selected)?.label}</span>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {ADDITIONAL_NAV[additionalParent].children.map(c=>(
+                      <button key={c.key} onClick={()=>setSelected(c.key)}
+                        style={{background:c.key===selected?"var(--accent-c)":"var(--bg-card)",color:c.key===selected?"#fff":"var(--t4)",border:"1px solid "+(c.key===selected?"var(--accent-c)":"var(--bd)"),borderRadius:6,padding:"5px 14px",cursor:"pointer",fontSize:".8em",fontWeight:600,transition:"background .15s"}}>
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <MD content={README_DATA[selected]||""} weekKey={selected}/>
             </div></div>
           }
