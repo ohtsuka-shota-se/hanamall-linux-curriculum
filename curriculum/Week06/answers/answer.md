@@ -1,154 +1,174 @@
 # Week06 課題 回答例・解説
 
-## 課題1：公開鍵認証の設定
+---
+
+### 大問1. 公開鍵認証を設定し、以下をすべて確認せよ
 
 ```bash
-# 鍵ペアを生成（既にある場合はスキップ）
-ssh-keygen -t ed25519 -C "hanamall-$(date +%Y%m%d)"
+# 鍵ペアを生成（クライアント側）
+ssh-keygen -t ed25519 -C "hanamall-deploy"
 
-# サーバーに公開鍵を登録
-ssh-copy-id ubuntu@192.168.1.100
+# 公開鍵をサーバーに登録
+ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@サーバーIP
 
-# パスワードなしでログインできることを確認
-ssh -o PasswordAuthentication=no ubuntu@192.168.1.100
-# → パスワードを聞かれずにログインできればOK
+# または手動で
+cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+
+# 接続確認
+ssh -i ~/.ssh/id_ed25519 ubuntu@サーバーIP
 ```
 
-**手動で登録する場合：**
-```bash
-cat ~/.ssh/id_ed25519.pub | ssh ubuntu@192.168.1.100 \
-  "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
-```
-
-**パーミッションが正しくないと動かない：**
-```bash
-# サーバー側で確認
-ls -la ~/.ssh/
-# drwx------  .ssh/            → 700 必須
-# -rw-------  authorized_keys  → 600 必須
-```
+**`authorized_keys` のパーミッションが重要：**
+- `~/.ssh/` → 700（自分のみアクセス可）
+- `~/.ssh/authorized_keys` → 600（自分のみ読み書き可）
 
 ---
 
-## 課題2：~/.ssh/config の設定
+### 大問2. ~/.ssh/config に以下を設定し、動作確認せよ
+
+```bash
+nano ~/.ssh/config
+```
 
 ```
-Host dev01
-    HostName localhost
+Host hanamall-dev
+    HostName 192.168.1.10
     User ubuntu
     IdentityFile ~/.ssh/id_ed25519
     Port 22
 ```
 
-**設定後の確認：**
 ```bash
-ssh dev01           # → シンプルに接続できる
-ssh -v dev01        # → "Reading configuration data ~/.ssh/config" が表示される
+chmod 600 ~/.ssh/config
+
+# 設定した名前で接続できることを確認
+ssh hanamall-dev
 ```
 
-**`-v`（verbose）は設定のデバッグに必須。**
-「接続できないけど何が起きているか分からない」ときはまず `-v` で確認する。
+**メリット：** 長いオプションを毎回打たずに `ssh hanamall-dev` だけで接続できる。
 
 ---
 
-## 課題3：sshd_config のセキュア化
+### 大問3. sshd_config で以下を設定し、それぞれ意図通りに動くことを確認せよ
 
 ```bash
-# ⚠️ 必ず先に公開鍵認証でログインできることを確認！
-ssh dev01   # → 通ることを確認してから設定変更する
-
-sudo vim /etc/ssh/sshd_config
+sudo nano /etc/ssh/sshd_config
 ```
 
-**変更箇所：**
 ```
-PermitRootLogin no           # root への直接ログインを禁止
-PasswordAuthentication no    # パスワード認証を無効化
-MaxAuthTries 3               # 3回失敗で切断
+PasswordAuthentication no    # パスワード認証を禁止
+PermitRootLogin no           # root 直接ログインを禁止
 ```
 
 ```bash
-# 設定の文法チェック（再起動前に必ず確認）
-sudo sshd -t
-# → エラーがなければ再起動
+# 設定反映
+sudo systemctl reload ssh
 
-sudo systemctl restart sshd
+# パスワード認証が拒否されることを確認
+ssh -o PubkeyAuthentication=no ubuntu@localhost
+# → Permission denied (publickey)
 
-# 別ターミナルで引き続きログインできることを確認
-ssh dev01   # → まだ繋がることを確認
+# root ログインが拒否されることを確認
+ssh root@localhost
+# → Permission denied
 ```
-
-**設定ミスでロックアウトしてしまったら：**
-VirtualBox や AWS なら「シリアルコンソール」「EC2 Instance Connect」で
-パスワードなしでアクセスして修正する。
-本番作業では必ず別セッションを開いたまま設定変更すること。
 
 ---
 
-## 課題4：バックアップのcronジョブ
+### 大問4. 以下のcronジョブを設定し、crontab -l で登録を確認せよ
 
 ```bash
-# ディレクトリを作っておく
-mkdir -p /tmp/test_backup
-
-# crontab を編集
 crontab -e
 ```
 
-**追記する内容：**
-```
-# HanaMall テストバックアップ（毎日23時）
-0 23 * * * tar czf /tmp/test_backup_$(date +\%Y\%m\%d).tar.gz /tmp/test_backup/ >> /var/log/backup_cron.log 2>&1
+```cron
+# 毎日深夜2時にバックアップ
+0 2 * * * /home/ubuntu/backup.sh >> /var/log/backup.log 2>&1
+
+# 5分ごとにディスク使用率をログに記録
+*/5 * * * * df -h >> /var/log/disk_usage.log 2>&1
 ```
 
-> **注意：** crontab 内では `%` を `\%` にエスケープする必要がある。
-> `date +%Y%m%d` → `date +\%Y\%m\%d`
-
-**登録確認：**
 ```bash
-crontab -l   # → 登録した行が表示される
+# 確認
+crontab -l
 ```
 
-**すぐに動作確認したい場合：**
-```bash
-# cron の時刻を待たずに手動実行してテスト
-tar czf /tmp/test_backup_$(date +%Y%m%d).tar.gz /tmp/test_backup/
-ls /tmp/test_backup_*.tar.gz   # → ファイルができていればOK
-```
+**cron の書式：** `分 時 日 月 曜日 コマンド`
 
 ---
 
-## 課題5：思考問題 — ブルートフォース攻撃のIPとその理由
+### 大問5. sudo grep "Accepted\|Failed" /var/log/auth.log | tail -20 を実行し、以下をまとめよ
 
-**答え：**
 ```bash
-sudo grep "Failed password" /var/log/auth.log | awk '{print $11}' | sort | uniq -c | sort -rn
+sudo grep -E "Accepted|Failed" /var/log/auth.log | tail -20
 ```
 
-**出てくるIPの例：**
+**出力例：**
 ```
-    143 185.234.x.x      ← 見知らぬ海外IP（世界中のbotが常時スキャン）
-      3 127.0.0.1         ← ローカル（自分のテストかも）
+May  1 09:01:15 server01 sshd: Accepted publickey for ubuntu from 192.168.1.100
+May  1 09:12:45 server01 sshd: Failed password for root from 10.0.0.99
 ```
 
-**なぜ見知らぬIPが出るのか：**
-インターネット上には常時 SSH（22番ポート）にブルートフォースをかけ続けるbotが大量に存在する。
-サーバーを公開して数分〜数時間以内にほぼ必ずログイン失敗が記録される。
-
-**だから `PasswordAuthentication no` が必要：**
-パスワード認証を無効にすることで、
-仮に `root/password` のような弱いパスワードを設定していても侵入を防げる。
+| 種別 | 件数 | 概要 |
+|------|------|------|
+| Accepted | 2件 | 正常ログイン（公開鍵） |
+| Failed | 3件 | root への失敗試行 |
 
 ---
 
-## よくある躓きポイント
+### 大問6. rsync で安全なファイル転送を体験せよ
 
-**Q: `ssh-copy-id` でパスワードを聞かれる**
-A: これは正常。最初の一回だけパスワードで入って鍵を登録する。次回から鍵認証になる。
+```bash
+# ローカル → ローカルのコピー（dry-run で確認）
+rsync -av --dry-run /var/www/ /backup/www/
 
-**Q: cron に登録したのに実行されない**
-A: 以下を確認する。
-1. `crontab -l` で登録されているか
-2. `%` が `\%` にエスケープされているか
-3. `/var/log/syslog | grep CRON` でエラーが出ていないか
-4. スクリプトに実行権限があるか（`chmod +x`）
+# 問題なければ実行
+rsync -av /var/www/ /backup/www/
+
+# リモートへの転送
+rsync -av -e ssh /var/www/ ubuntu@192.168.1.11:/backup/www/
+
+# 削除フラグ付き（送信元にないファイルを削除）
+rsync -av --delete /var/www/ /backup/www/
+```
+
+**オプションまとめ：**
+| オプション | 意味 |
+|-----------|------|
+| `-a` | アーカイブモード（パーミッション・タイムスタンプ等を保持） |
+| `-v` | 詳細表示 |
+| `--dry-run` | 実際には実行しない（確認用） |
+| `--delete` | 送信元にないファイルを送信先から削除 |
+
+---
+
+### 大問7. 思考問題: 秘密鍵（id_ed25519）を誤って外部に公開してしまった。直ちに取るべき対応を手順付きで答えよ
+
+**Step1：流出した公開鍵をサーバーから即座に削除する**
+```bash
+# authorized_keys から該当の公開鍵を削除
+nano ~/.ssh/authorized_keys
+# 該当行を削除して保存
+```
+
+**Step2：新しい鍵ペアを生成して登録する**
+```bash
+ssh-keygen -t ed25519 -C "hanamall-deploy-new"
+ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@サーバーIP
+```
+
+**Step3：流出した秘密鍵を使ったアクセスがなかったか確認する**
+```bash
+sudo grep "Accepted" /var/log/auth.log | grep -v "192.168.1."
+# 不審なIPからのログインがないか確認
+```
+
+**Step4：流出した鍵ファイルを削除する**
+```bash
+rm ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub
+```
+
+**ポイント：** 秘密鍵の流出は「パスワードの流出」と同等。発覚したら即座に無効化することが最優先。

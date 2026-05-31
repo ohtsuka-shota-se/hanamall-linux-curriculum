@@ -1,49 +1,43 @@
 # Week09 課題 回答例・解説
 
-## 課題1：Apacheをバージョン固定
+---
+
+### 大問1. Apache のバージョンを確認し、apt-mark hold で固定せよ
 
 ```bash
-# 現在のバージョン確認
+# バージョン確認
 apache2 -v
-# Server version: Apache/2.4.52
+dpkg -l apache2 | grep apache2
 
-# インストール可能なバージョン一覧
-apt-cache policy apache2
+# バージョン固定
+sudo apt-mark hold apache2
 
-# バージョンを固定（関連パッケージも一緒に固定する）
-sudo apt-mark hold apache2 apache2-bin apache2-data
+# 固定の確認
 apt-mark showhold
-# → apache2, apache2-bin, apache2-data が表示される
 
-# 固定されていることを確認（更新対象に出てこないこと）
-sudo apt upgrade --dry-run | grep apache2
-# → 何も表示されなければOK
+# 固定を解除する場合（参考）
+sudo apt-mark unhold apache2
 ```
 
-**なぜ関連パッケージも固定するのか：**
-`apache2` だけ固定しても `apache2-bin` が更新されると実質的にApacheが更新されてしまう。
-`apt-cache showpkg apache2` で依存関係を確認して関連パッケージもまとめて固定する。
+**解説：** `apt-mark hold` で `apt upgrade` の対象から除外できる。本番環境では動作確認済みのバージョンを固定し、意図しないアップデートを防ぐ。
 
 ---
 
-## 課題2：バックアップスクリプトをsystemdサービスに登録
+### 大問2. Week07 で作った hanamall_backup.sh を systemd サービスとして登録せよ
 
 ```bash
-# Week07のスクリプトを所定の場所に配置
-sudo cp hands-on/07_backup.sh /usr/local/bin/hanamall_backup.sh
-sudo chmod +x /usr/local/bin/hanamall_backup.sh
+sudo nano /etc/systemd/system/hanamall-backup.service
 ```
 
-**Unit ファイルを作成：**
 ```ini
-# /etc/systemd/system/hanamall-backup.service
 [Unit]
 Description=HanaMall Backup Service
 After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/hanamall_backup.sh
+ExecStart=/home/ubuntu/hanamall_backup.sh
+User=ubuntu
 StandardOutput=journal
 StandardError=journal
 
@@ -54,25 +48,21 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable hanamall-backup.service
-
-# 手動で1回実行して動作確認
 sudo systemctl start hanamall-backup.service
-sudo systemctl status hanamall-backup.service   # → active (exited)
-journalctl -u hanamall-backup -n 20             # → ログを確認
+sudo systemctl status hanamall-backup.service
 ```
-
-**Type=oneshot とは：**
-バックアップのように「実行して終了する」スクリプトには `oneshot` を使う。
-`simple` は「常駐するプロセス」向けで、終了するとsystemdがエラーと判断してしまう。
 
 ---
 
-## 課題3：systemdタイマーで深夜2時に実行
+### 大問3. systemd タイマーで毎日深夜2時に自動実行するよう設定せよ
+
+```bash
+sudo nano /etc/systemd/system/hanamall-backup.timer
+```
 
 ```ini
-# /etc/systemd/system/hanamall-backup.timer
 [Unit]
-Description=HanaMall Daily Backup Timer
+Description=Run HanaMall Backup daily at 2:00
 
 [Timer]
 OnCalendar=*-*-* 02:00:00
@@ -83,66 +73,104 @@ WantedBy=timers.target
 ```
 
 ```bash
+sudo systemctl daemon-reload
 sudo systemctl enable hanamall-backup.timer
 sudo systemctl start hanamall-backup.timer
 
-# 次回実行時刻を確認
+# 確認
 systemctl list-timers | grep hanamall
-# NEXT                         LEFT     LAST  PASSED  UNIT
-# Sat 2025-05-04 02:00:00 JST  8h left  n/a   n/a    hanamall-backup.timer
 ```
-
-**`Persistent=true` の意味：**
-サーバーが停止していてタイマーが発火できなかった場合、
-次回起動時に遅れて実行する。夜間メンテナンスで停止するサーバーに有効。
 
 ---
 
-## 課題4：ログ確認
+### 大問4. journalctl で以下の調査を実施せよ
 
 ```bash
-# 今日のログだけ確認
-journalctl -u hanamall-healthcheck --since today
+# 本日のログ
+journalctl --since today
 
-# 直近50行
-journalctl -u hanamall-healthcheck -n 50
+# apache2 の直近50件
+journalctl -u apache2 -n 50 --no-pager
 
-# リアルタイム追跡
-journalctl -u hanamall-healthcheck -f
+# エラー・警告のみ
+journalctl -p err -n 30 --no-pager
 
-# エラーだけ確認
-journalctl -u hanamall-healthcheck -p err
+# 特定時間帯
+journalctl --since "2025-05-01 09:00" --until "2025-05-01 10:00"
 ```
 
 ---
 
-## 課題5：思考問題 — `Restart=on-failure` と無限ループスクリプト
+### 大問5. logrotate 設定を確認し、以下を実施せよ
 
-**何が起きるか：**
-無限ループスクリプトが異常終了するたびに systemd が再起動を繰り返す。
-`RestartSec` を設定していないと、クラッシュ→即再起動→クラッシュを高速で繰り返し
-CPUを食い続ける「再起動ストーム」が発生する。
+```bash
+# Apache の logrotate 設定確認
+cat /etc/logrotate.d/apache2
 
-**適切な設計：**
+# 手動で logrotate を実行（dry-run）
+sudo logrotate -d /etc/logrotate.d/apache2
+
+# 実際に実行
+sudo logrotate -f /etc/logrotate.d/apache2
+
+# 結果確認
+ls -lh /var/log/apache2/
+```
+
+**設定の追加例：**
+
+```
+/var/log/hanamall/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 www-data www-data
+}
+```
+
+---
+
+### 大問6. systemctl list-units --type=service --state=failed を実行し、failed なサービスがあれば原因を調査して報告せよ
+
+```bash
+systemctl list-units --type=service --state=failed
+```
+
+**failed がある場合の調査手順：**
+
+```bash
+# ログを確認
+journalctl -u サービス名.service -n 30 --no-pager
+
+# ステータス詳細
+systemctl status サービス名.service
+
+# 設定ファイルの構文確認（Apache の場合）
+sudo apache2ctl configtest
+```
+
+---
+
+### 大問7. 思考問題: Restart=on-failure でクラッシュ→即再起動を繰り返した場合の影響と、RestartSec・StartLimitBurst を使った設計を答えよ
+
+**サーバーへの影響：**
+- CPU・メモリを高速で消費し続け、サーバー全体のリソースが枯渇する
+- 他のサービスへの影響（メモリ不足、ロードアベレージ上昇）
+- ログが大量に生成され、ディスクフルになる可能性がある
+
+**適切な設計例：**
+
 ```ini
 [Service]
 Restart=on-failure
-RestartSec=30           # 30秒待ってから再起動（連続クラッシュを抑止）
-StartLimitIntervalSec=300   # 5分間で
-StartLimitBurst=3           # 3回以上クラッシュしたら再起動を諦める
+RestartSec=5s          # 再起動前に5秒待つ
+StartLimitBurst=3      # 30秒以内に3回失敗したら
+StartLimitIntervalSec=30s  # 起動を諦める（手動介入を要求）
 ```
 
-`StartLimitBurst` を超えると systemd はサービスを `failed` 状態にして再起動を停止する。
-その後は `sudo systemctl reset-failed hanamall-healthcheck` で手動リセットが必要になる。
-
----
-
-## よくある躓きポイント
-
-**Q: `systemctl daemon-reload` を忘れてサービスが古いUnit ファイルで動く**
-A: Unit ファイルを変更したら必ず `daemon-reload` が必要。
-忘れると「設定を変えたのに反映されない」という混乱が起きる。
-
-**Q: タイマーを有効化したのに `systemctl list-timers` に表示されない**
-A: `systemctl start hanamall-backup.timer` でタイマーを起動していないことが多い。
-`enable` は「自動起動の登録」で、実際の起動は `start` が必要。
+**設計の考え方：**
+- `RestartSec` で再起動間隔を空けてリソース浪費を防ぐ
+- `StartLimitBurst` で連続失敗時は自動復旧を諦め、アラート→人間が調査するフローに切り替える

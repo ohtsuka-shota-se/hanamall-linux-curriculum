@@ -1,172 +1,163 @@
 # Week08 課題 回答例・解説
 
-## 課題1：ディスク使用量トップ10
+---
+
+### 大問1. df -h と du -sh /* で「最もディスクを使っているディレクトリ」を特定して報告せよ
 
 ```bash
+# 全体確認
+df -h
+
+# ディレクトリ別使用量 Top10
 du -sh /* 2>/dev/null | sort -rh | head -10
-```
 
-**出力例と「なぜそこが大きいか」の説明：**
-```
-4.5G  /var    ← ログ・パッケージキャッシュ・スプールが蓄積する
-2.1G  /usr    ← インストール済みパッケージの実体
-512M  /opt    ← サードパーティ製ソフトウェア
-128M  /home   ← ユーザーのホームディレクトリ
-```
-
-**絞り込みの流れ：**
-```bash
-du -sh /var/* 2>/dev/null | sort -rh | head -10
-# → /var/log が大きければ
+# /var/log を掘り下げる
 du -sh /var/log/* 2>/dev/null | sort -rh | head -10
-# → 原因ファイルを特定
+
+# 最大ファイルを特定
+find /var/log -type f -printf '%s %p\n' 2>/dev/null | sort -rn | head -5
 ```
+
+**解説：** `sort -rh` は `-h`（human-readable: 1G > 100M を正しく比較）+ `-r`（降順）の組み合わせ。
 
 ---
 
-## 課題2：ddでテストファイルを作成・削除してdfを確認
+### 大問2. dd で 500MB のテストファイルを作成・削除して df の変化を確認せよ
 
 ```bash
-# 500MB のテストファイルを作成
-dd if=/dev/zero of=/tmp/testfile bs=1M count=500 status=progress
+# 500MB ファイルを作成
+dd if=/dev/zero of=/tmp/testfile bs=1M count=500
 
-# df で変化を確認
-df -h /tmp   # → 500MB 増えている
+# df で変化確認
+df -h /tmp
 
 # 削除
 rm /tmp/testfile
 
-# df で確認
-df -h /tmp   # → 戻る（はず）
+# df で確認（通常は即時反映される）
+df -h /tmp
+
+# 「削除したのに df が変わらない」現象の再現
+# 別ターミナルでファイルを開いたまま削除
+tail -f /tmp/testfile &
+rm /tmp/testfile
+
+# lsof で確認
+lsof | grep deleted
+# → tail プロセスがファイルを掴んでいることで inode が解放されない
+
+# 解決方法
+kill %1   # tail プロセスを終了 → df の数値が回復する
 ```
-
-**「削除してもdfの数値が変わらない」場合の対処：**
-
-`rm` でファイルを削除しても、そのファイルを **開いているプロセスがいる場合** は
-ディスクの実体が解放されない（Linux の設計上の仕様）。
-
-```bash
-# 原因プロセスを特定する
-sudo lsof | grep deleted
-# 出力例：
-# apache2  1234  www-data  5w  REG  ... /var/log/apache2/access.log (deleted)
-# → apache2 (PID:1234) がまだ開いている
-
-# 解決方法1：プロセスを再起動して閉じさせる
-sudo systemctl restart apache2
-df -h   # → 今度は減る
-
-# 解決方法2：ファイルを空にする（プロセスを止めずに容量を解放）
-> /var/log/apache2/access.log   # 中身だけ空にする（ファイルは残る）
-```
-
-**覚えておくべき原則：**
-> `rm` はファイル名（参照）を削除するだけ。
-> 実体（データブロック）はそのファイルへの参照がゼロになったとき初めて解放される。
 
 ---
 
-## 課題3：仮想ディスクを追加して /mnt/data にマウントし fstab に永続化
-
-VirtualBox に仮想ディスク（/dev/sdb）を追加した後：
+### 大問3. ディスクフル障害を再現して復旧させ、全手順をコマンド付きで記録せよ
 
 ```bash
-# 1. 新しいディスクが認識されているか確認
+# Step1: ディスクをフルにする
+dd if=/dev/zero of=/var/log/filltest bs=1M
+# → No space left on device
+
+# Step2: Apache が落ちることを確認
+sudo systemctl status apache2
+# → ログが書けず起動失敗
+
+# Step3: どこが圧迫しているか特定
+df -h
+du -sh /var/log/* 2>/dev/null | sort -rh | head -5
+
+# Step4: 原因ファイルを削除
+sudo rm /var/log/filltest
+
+# Step5: Apache を再起動
+sudo systemctl restart apache2
+sudo systemctl status apache2
+```
+
+---
+
+### 大問4. VirtualBox に仮想ディスクを追加して以下を実施せよ
+
+```bash
+# 追加ディスクの確認
 lsblk
-# → /dev/sdb が表示されていればOK
+# → sdb が追加されているはず
 
-# 2. パーティションを作成
+# パーティション作成
 sudo fdisk /dev/sdb
-# → n（新規）→ p（プライマリ）→ 1（番号）→ Enter × 2（デフォルト）→ w（書き込み）
+# → n (new) → p (primary) → 1 → Enter → Enter → w (write)
 
-# 3. フォーマット
+# フォーマット
 sudo mkfs.ext4 /dev/sdb1
 
-# 4. マウントポイントを作成して一時マウント
+# マウント
 sudo mkdir -p /mnt/data
 sudo mount /dev/sdb1 /mnt/data
-df -h /mnt/data   # → マウントされていることを確認
+df -h /mnt/data
 
-# 5. UUID を確認
-sudo blkid /dev/sdb1
-# → UUID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" type="ext4"
-
-# 6. /etc/fstab に追記（UUID で指定）
-echo "UUID=<上で確認したUUID>  /mnt/data  ext4  defaults  0  2" | sudo tee -a /etc/fstab
-
-# 7. fstab の設定をテスト（再起動前に必ず確認）
-sudo umount /mnt/data
-sudo mount -a          # エラーが出なければ設定OK
-df -h /mnt/data        # → マウントされていることを確認
-
-# 8. 再起動して永続化を確認
-sudo reboot
-df -h /mnt/data   # → 再起動後もマウントされていればOK
-```
-
-**なぜ UUID で指定するのか：**
-デバイス名（`/dev/sdb1`）はディスクの追加・削除順序によって変わることがある。
-UUID はディスクのフォーマット時に一意に割り振られる固定値なので、
-デバイス名が変わっても正しいディスクをマウントできる。
-
----
-
-## 課題4：rsyncでバックアップ + `--delete` の注意点
-
-```bash
-# dry-run で確認してから実行
-rsync -av --dry-run --delete /var/www/ /backup/www/
-# → 問題なければ --dry-run を外す
-rsync -av --delete /var/www/ /backup/www/
-```
-
-**`--delete` の意味と本番での注意点：**
-
-`--delete` は「転送元にないファイルをバックアップ先でも削除する」オプション。
-誤って本番ファイルを削除してしまったとき、
-`--delete` 付きの rsync が動くとバックアップからも消えてしまう。
-
-**本番環境での安全策：**
-```bash
-# 世代バックアップ（日付ディレクトリに分けて保存）
-BACKUP_DIR="/backup/$(date +%Y%m%d)"
-rsync -av /var/www/ "$BACKUP_DIR/"
-# → --delete を使わず日次で別ディレクトリに保存する
+# 永続化（再起動後も自動マウント）
+echo "$(sudo blkid /dev/sdb1 | awk '{print $2}') /mnt/data ext4 defaults 0 2" | sudo tee -a /etc/fstab
+sudo mount -a  # fstab を即時反映
 ```
 
 ---
 
-## 課題5：思考問題 — バックアップ先がいっぱいになったら
+### 大問5. rsync -av --dry-run --delete /var/www/ /backup/www/ を実行して内容を確認し、問題なければ --dry-run を外して実行せよ
 
-**何が起きるか：**
-バックアップスクリプトが `tar czf` を実行した瞬間に
-「No space left on device」エラーが発生してスクリプトが終了する。
-`set -e` を付けていれば途中でアーカイブが壊れた状態で終了し、
-ロックファイルは `trap` で解放される。
-
-**対策：**
 ```bash
-# バックアップ実行前にディスク空き確認を入れる
-AVAILABLE=$(df /backup | tail -1 | awk '{print $4}')   # KB単位
-REQUIRED=524288   # 500MB = 500 * 1024 KB
+# まず dry-run で確認（実際には何もしない）
+sudo rsync -av --dry-run --delete /var/www/ /backup/www/
 
-if [ "$AVAILABLE" -lt "$REQUIRED" ]; then
-  log "ERROR" "ディスク空き不足: ${AVAILABLE}KB < ${REQUIRED}KB"
-  exit 1
+# 問題なければ実行
+sudo rsync -av --delete /var/www/ /backup/www/
+```
+
+**`--delete` の意味と注意点：**
+- 意味：送信元（`/var/www/`）に存在しないファイルを、送信先（`/backup/www/`）から削除する
+- 注意点：誤って逆方向に実行すると本番ファイルが消える恐れがある。方向（送信元 → 送信先）を必ず確認してから `--dry-run` なしで実行すること
+
+---
+
+### 大問6. ディスク使用率の閾値を考え、healthcheck.sh のディスク閾値を調整せよ
+
+```bash
+# 現在の使用率確認
+df -h /
+
+# healthcheck.sh の閾値を変更（例: 80%をアラート閾値に設定）
+nano ~/healthcheck.sh
+```
+
+```bash
+DISK_THRESHOLD=80
+disk_usage=$(df / | awk 'NR==2 {print $5}' | tr -d '%')
+if [ "$disk_usage" -ge "$DISK_THRESHOLD" ]; then
+    echo "[WARN] ディスク使用率が ${DISK_THRESHOLD}% を超えました: ${disk_usage}%"
 fi
 ```
 
+**閾値の根拠：**
+- 80%：アラート発報（調査・対応を開始）
+- 90%：緊急対応（ログ削除・増設の判断）
+- 100%：サービス停止。絶対に到達させてはいけない水準
+
 ---
 
-## よくある躓きポイント
+### 大問7. 思考問題: /var/log を別パーティションに切り出すメリットを2つ、および Week08 の障害がなぜ起きたか・どう防ぐべきだったかを答えよ
 
-**Q: `/etc/fstab` に追記したら再起動してもマウントされない**
-A: UUID の確認と fstab の書式を確認する。
-```bash
-sudo blkid /dev/sdb1   # UUID を確認
-sudo mount -a          # fstab を再読み込みしてエラーを確認
-```
+**メリット：**
 
-**Q: `resize2fs` でエラーが出る**
-A: `lvextend` の後、ファイルシステムの種類を確認する。
-xfs の場合は `resize2fs` ではなく `xfs_growfs /mnt/data` を使う。
+1. **ルートパーティションのディスクフルを防ぐ**  
+   ログが肥大化してもルート（`/`）には影響せず、OS・アプリが継続稼働できる。
+
+2. **障害の影響範囲を局所化できる**  
+   `/var/log` のディスクフルはログが書けなくなるだけで、アプリのデータ領域（`/var/www` など）は影響を受けない。
+
+**Week08 の障害がなぜ起きたか：**  
+`/var/log` がルートパーティションと同じ領域にあったため、ログの肥大化がルートのディスクフルを引き起こし、Apache がログを書けなくなって停止した。
+
+**どう防ぐべきだったか：**
+- `logrotate` でログを定期的に圧縮・削除する設定を入れておく
+- `cron` でディスク使用率を監視し、80% で Slack/メールアラートを送る
+- `/var/log` を独立したパーティションに切り出す

@@ -1,146 +1,166 @@
 # Week05 課題 回答例・解説
 
-## 課題2：オリジナルHTMLをVirtualHostで表示
+---
+
+### 大問1. shop.hanamall.local の設定ファイルを a2dissite で無効化し、再度 a2ensite で有効化する手順を完全に自力でやってみよ
 
 ```bash
-# 1. ドキュメントルートとHTMLを作成
-sudo mkdir -p /var/www/mysite
-cat << 'HTML' | sudo tee /var/www/mysite/index.html
-<h1>My HanaMall Site</h1>
-HTML
-sudo chown -R www-data:www-data /var/www/mysite
+# 無効化
+sudo a2dissite shop.hanamall.local.conf
+sudo systemctl reload apache2
 
-# 2. VirtualHost設定を作成
-sudo tee /etc/apache2/sites-available/mysite.conf << 'CONF'
+# 無効化の確認（404 または接続不可になるはず）
+curl -H "Host: shop.hanamall.local" http://localhost
+
+# 再度有効化
+sudo a2ensite shop.hanamall.local.conf
+sudo systemctl reload apache2
+
+# 確認（200 が返ってくるはず）
+curl -o /dev/null -s -w "%{http_code}" -H "Host: shop.hanamall.local" http://localhost
+```
+
+**ポイント：**
+- `a2dissite`：`/etc/apache2/sites-enabled/` のシンボリックリンクを削除
+- `a2ensite`：シンボリックリンクを再作成
+- 設定変更後は必ず `reload` または `restart`
+
+---
+
+### 大問2. 以下の障害を意図的に発生させ、error.log だけを手がかりに復旧させよ
+
+**DocumentRoot を存在しないディレクトリに変更した場合の復旧例：**
+
+```bash
+# エラーログ確認
+sudo tail -20 /var/log/apache2/error.log
+# → [error] ... DocumentRoot '/var/www/shop_broken' does not exist
+
+# 設定ファイルで誤りを特定して修正
+sudo nano /etc/apache2/sites-available/shop.hanamall.local.conf
+
+# 構文確認
+sudo apache2ctl configtest
+
+# 復旧
+sudo systemctl reload apache2
+```
+
+**error.log の読み方：**
+- `[error]`：エラーレベル
+- ファイルパス・行番号が書かれているので設定ファイルの該当箇所を直接確認できる
+
+---
+
+### 大問3. 新規バーチャルホスト追加: api.hanamall.local を自力で追加し、{"status":"ok"} を返すようにせよ
+
+```bash
+# ドキュメントルート作成
+sudo mkdir -p /var/www/api
+echo '{"status":"ok"}' | sudo tee /var/www/api/index.html
+
+# 設定ファイル作成
+sudo nano /etc/apache2/sites-available/api.hanamall.local.conf
+```
+
+```apache
 <VirtualHost *:80>
-    ServerName mysite.local
-    DocumentRoot /var/www/mysite
-    <Directory /var/www/mysite>
-        Require all granted
-    </Directory>
+    ServerName api.hanamall.local
+    DocumentRoot /var/www/api
+    ErrorLog ${APACHE_LOG_DIR}/api_error.log
+    CustomLog ${APACHE_LOG_DIR}/api_access.log combined
 </VirtualHost>
-CONF
-
-# 3. 有効化・反映
-sudo a2ensite mysite.conf
-sudo apache2ctl configtest   # → Syntax OK を確認
-sudo systemctl reload apache2
-
-# 4. /etc/hosts に追加して確認
-echo "127.0.0.1 mysite.local" | sudo tee -a /etc/hosts
-curl http://mysite.local   # → <h1>My HanaMall Site</h1>
 ```
 
-## 課題3：shop / admin バーチャルホスト設定
-
 ```bash
-# 1. ドキュメントルート作成
-sudo mkdir -p /var/www/shop /var/www/admin
-echo "<h1>Shop</h1>" | sudo tee /var/www/shop/index.html
-echo "<h1>Admin</h1>" | sudo tee /var/www/admin/index.html
-sudo chown -R www-data:www-data /var/www/shop /var/www/admin
-
-# 2. Apache設定を配置・有効化
-sudo cp hands-on/site-a.conf /etc/apache2/sites-available/
-sudo cp hands-on/site-b.conf /etc/apache2/sites-available/
-sudo a2ensite site-a.conf site-b.conf
-
-# 3. 構文チェックと反映
-sudo apache2ctl configtest   # → Syntax OK
+# 有効化して反映
+sudo a2ensite api.hanamall.local.conf
+sudo apache2ctl configtest
 sudo systemctl reload apache2
 
-# 4. 確認
-curl http://site-a.local   # → <h1>Site A</h1>
-curl http://site-b.local   # → <h1>Site B</h1>
-```
-
-## 課題4：DocumentRootミスによる404のトラブルシューティング
-
-```bash
-# 意図的にDocumentRootを間違える
-sudo vim /etc/apache2/sites-available/site-a.conf
-# DocumentRoot /var/www/wrong-path  ← 存在しないパスに変更
-
-sudo apache2ctl configtest && sudo systemctl reload apache2
-curl http://site-a.local   # → 403 or 404
-
-# エラーログで原因を確認
-sudo tail /var/log/apache2/site-a_error.log
-# [error] [client ...] DocumentRoot must be a directory
-
-# 正しいパスに戻す
-sudo vim /etc/apache2/sites-available/site-a.conf
-sudo apache2ctl configtest && sudo systemctl reload apache2
-curl http://site-a.local   # → 200
+# 確認
+curl -H "Host: api.hanamall.local" http://localhost
+# → {"status":"ok"}
 ```
 
 ---
 
-## 課題4（思考問題）：reload 時に文法エラーがあるとどうなるか
+### 大問4. Apache のアクセスログから以下を調べよ
 
-**問い：** 本番サービス中に `sudo systemctl reload apache2` を実行したとき、設定ファイルに文法エラーがあるとどうなるか？
-
-**実際に試す手順：**
 ```bash
-# 1. わざと文法エラーを入れる
-sudo bash -c 'echo "invalid_directive;" >> /etc/apache2/apache2.conf'
+# 直近100件のエラー件数
+sudo tail -100 /var/log/apache2/shop_access.log | grep -E ' [45][0-9]{2} ' | wc -l
 
-# 2. reload を実行
+# ステータスコード別の件数
+sudo awk '{print $9}' /var/log/apache2/shop_access.log | sort | uniq -c | sort -rn
+
+# 最もアクセスの多いURL Top5
+sudo awk '{print $7}' /var/log/apache2/shop_access.log | sort | uniq -c | sort -rn | head -5
+```
+
+---
+
+### 大問5. apache2ctl -S を実行し、現在有効なバーチャルホストの一覧を確認せよ
+
+```bash
+sudo apache2ctl -S
+```
+
+**出力例：**
+```
+VirtualHost configuration:
+*:80                   shop.hanamall.local (/etc/apache2/sites-enabled/shop.hanamall.local.conf:1)
+*:80                   admin.hanamall.local (/etc/apache2/sites-enabled/admin.hanamall.local.conf:1)
+*:80                   api.hanamall.local (/etc/apache2/sites-enabled/api.hanamall.local.conf:1)
+```
+
+| ドメイン | 設定ファイル |
+|---------|------------|
+| shop.hanamall.local | shop.hanamall.local.conf |
+| admin.hanamall.local | admin.hanamall.local.conf |
+| api.hanamall.local | api.hanamall.local.conf |
+
+---
+
+### 大問6. 設定ファイルに意図的に文法エラーを入れて systemctl reload apache2 を実行し、以下を確認してから復旧させよ
+
+```bash
+# 意図的にエラーを入れる（ServerNaem はミスタイプ）
+sudo sed -i 's/ServerName/ServerNaem/' /etc/apache2/sites-available/shop.hanamall.local.conf
+
+# reload を試みる
 sudo systemctl reload apache2
-```
 
-**出力結果：**
-```
-Job for apache2.service failed.
-See "journalctl -xe" for details.
-```
+# Apacheは落ちたか確認
+systemctl is-active apache2
+# → active（reload は失敗するが既存プロセスは継続して動く）
 
-**この時点でのApacheの状態を確認：**
-```bash
-sudo systemctl status apache2
-# → active (running) ← 落ちていない！
+# エラーの確認
+sudo apache2ctl configtest
+# → AH00526: Syntax error ... Invalid command 'ServerNaem'
 
-curl http://localhost
-# → 200 ← サービスは継続して動いている
-```
-
-**答え：Apache は落ちない。古い設定で動き続ける。**
-
-`reload` は「新しい設定で差し替える」操作だが、
-新しい設定の読み込みに失敗したとき Apache はそれを拒否して現在の設定を維持する。
-つまり **reload が失敗してもサービスは止まらない**。
-
-これが `reload` が `restart` より安全な理由でもある。
-
-| 操作 | 文法エラーがあった場合 | 文法エラーがない場合 |
-|------|---------------------|----------------|
-| `reload` | 失敗するが Apache は落ちない（旧設定で継続） | 無停止で設定反映 |
-| `restart` | 失敗して Apache が落ちる（サービス停止） | 再起動して設定反映 |
-
-**本番での鉄則：**
-```bash
-# 必ずこの順番で
-sudo apache2ctl configtest   # 1. 文法チェック（Syntax OK を確認）
-sudo systemctl reload apache2  # 2. 問題なければ reload
-```
-
-**後始末：**
-```bash
-# エラーを入れた行を削除
-sudo sed -i '/invalid_directive;/d' /etc/apache2/apache2.conf
-sudo apache2ctl configtest   # → Syntax OK
+# 復旧
+sudo sed -i 's/ServerNaem/ServerName/' /etc/apache2/sites-available/shop.hanamall.local.conf
+sudo apache2ctl configtest  # → Syntax OK
 sudo systemctl reload apache2
 ```
 
 ---
 
-## よくある躓きポイント
+### 大問7. 思考問題: ダウンタイムなしで設定を反映するには restart と reload のどちらを使うべきか。また、その前に必ず実行すべきコマンドは何か答えよ
 
-**Q: `sudo systemctl reload apache2` で設定が反映されない**
-A: `apache2ctl configtest` で文法エラーがないか先に確認する。エラーがあるとリロードに失敗してもApacheは古い設定で動き続ける（サービスは落ちない）。
+**`reload` を使うべき**
 
-**Q: 403 Forbidden が出る**
-A: 2つ確認する。①`<Directory>` ブロックに `Require all granted` があるか。②ドキュメントルートのパーミッションが `755` 以上か（`sudo chmod -R 755 /var/www/site-a`）。
+| | restart | reload |
+|-|---------|--------|
+| 動作 | プロセスを完全停止→再起動 | 設定ファイルのみ再読み込み |
+| 既存接続 | 切断される | 維持される |
+| ダウンタイム | 発生する | 発生しない |
 
-**Q: a2ensite したのに反映されない**
-A: `sudo systemctl reload apache2` を忘れている。`a2ensite` はシンボリックリンクを作るだけで、Apacheへの反映は reload が必要。
+**その前に必ず実行すべきコマンド：**
+
+```bash
+sudo apache2ctl configtest
+```
+
+理由：構文エラーがある状態で `reload` すると設定が反映されず、最悪の場合サービスが停止する。`configtest` で「Syntax OK」を確認してから `reload` するのが本番での鉄則。

@@ -1,112 +1,119 @@
 # Week03 課題 回答例・解説
 
-## 課題1：devuserの作成とグループ追加
+---
+
+### 大問1. 以下の要件でユーザーとグループを設定せよ
 
 ```bash
-sudo useradd -m -s /bin/bash devuser
-sudo passwd devuser
-sudo groupadd developers
-sudo usermod -aG developers devuser
+# グループ作成
+sudo groupadd hanamall-dev
+
+# ユーザー作成（ホームディレクトリ・シェル付き）
+sudo useradd -m -s /bin/bash -G hanamall-dev suzuki
+
+# パスワード設定
+sudo passwd suzuki
 
 # 確認
-id devuser
-# uid=1001(devuser) gid=1001(devuser) groups=1001(devuser),1002(developers)
+id suzuki
+grep suzuki /etc/passwd
+grep hanamall-dev /etc/group
 ```
 
-**ポイント：** `-aG` の `-a`（append）を忘れると既存グループから外れてしまう。
-`usermod -G developers devuser` だと devuser が developers だけのメンバーになってしまう。
+**解説：**
+- `-m`：ホームディレクトリ（`/home/suzuki`）を自動作成
+- `-s /bin/bash`：ログインシェルを bash に設定
+- `-G hanamall-dev`：追加グループに所属させる
 
 ---
 
-## 課題2：sudoersでコマンド制限
+### 大問2. yes > /dev/null & を3つ同時に起動し、top でCPU使用率が上昇することを確認してから全て kill せよ
 
 ```bash
-sudo visudo
-# 末尾に追加：
-devuser ALL=(ALL) NOPASSWD: /bin/systemctl restart apache2
-```
-
-**確認方法：**
-```bash
-su - devuser
-sudo systemctl restart apache2   # → 通る
-sudo reboot                       # → Permission denied になる
-```
-
-**なぜフルパスで書くのか：**
-sudoers にはコマンドをフルパスで書く必要がある。
-`/bin/systemctl` と `/usr/bin/systemctl` は環境によって異なるため、
-`which systemctl` で確認してから書くのが確実。
-
----
-
-## 課題3：CPUを100%にしてkill
-
-```bash
-# 負荷をかける
+# 3つ起動
 yes > /dev/null &
-# [1] 12345 と表示される（PIDをメモ）
+yes > /dev/null &
+yes > /dev/null &
 
-# topで確認（Pキーを押すとCPU順ソート）
+# top で確認（q で終了）
 top
 
-# kill
-kill 12345
+# 方法1: pkill で一括停止
+pkill yes
 
-# 確認
-ps aux | grep yes   # → 消えていればOK
+# 方法2: kill で個別停止
+ps aux | grep yes
+kill 1234 1235 1236   # PIDは実際の値に置き換える
 ```
 
-**`kill` と `kill -9` の使い分け：**
-
-| コマンド | シグナル | 動作 |
-|---------|---------|------|
-| `kill PID` | SIGTERM(15) | 「終了してください」というお願い。プロセスは後処理してから終了できる |
-| `kill -9 PID` | SIGKILL(9) | 強制終了。プロセスはブロックできない |
-
-まず通常の `kill` を試し、それでも終わらないときだけ `-9` を使う。
-`-9` は後処理なしで強制終了するためデータが壊れることがある。
+**解説：**
+- `pkill プロセス名`：名前でまとめて kill
+- `kill PID`：PIDを指定して個別に停止
 
 ---
 
-## 課題4：sudo履歴の抽出
+### 大問3. sudo grep "sudo" /var/log/auth.log で今日の sudo 実行履歴を確認し、「誰が・いつ・何のコマンドを実行したか」を表形式でまとめよ
 
 ```bash
-sudo grep "COMMAND" /var/log/auth.log
-
-# 出力例：
-# May 3 14:05:01 server01 sudo: tanaka : TTY=pts/0 ; PWD=/home/tanaka ; USER=root ; COMMAND=/bin/systemctl restart apache2
+sudo grep "COMMAND" /var/log/auth.log | tail -20
 ```
 
-**「誰が・いつ・何をしたか」が全部記録されている。**
-これがユーザーを個人アカウントで管理する理由。
+**出力例：**
+```
+May  1 10:05:23 server01 sudo: ubuntu : ... COMMAND=/usr/bin/apt update
+May  1 10:10:11 server01 sudo: ubuntu : ... COMMAND=/usr/bin/systemctl restart apache2
+```
+
+| 時刻 | ユーザー | 実行コマンド |
+|------|---------|------------|
+| 10:05:23 | ubuntu | apt update |
+| 10:10:11 | ubuntu | systemctl restart apache2 |
 
 ---
 
-## 課題5：思考問題 — 全員が同じ `deploy` ユーザーで作業する運用のリスク
+### 大問4. ps aux の出力から www-data ユーザーで動いているプロセスをすべて抽出し、それが何のサービスか答えよ
 
-**具体的なトラブルシナリオ：**
+```bash
+ps aux | grep www-data | grep -v grep
+```
 
-深夜にサービス障害が発生し、翌朝調査したところ本番DBのテーブルが一部消えていた。
-auth.log を確認すると「deploy ユーザーがログインして作業していた」ことは分かるが、
-そのとき deploy ユーザーを使っていたのが誰なのかが追えない。
-4人のチームで全員が「自分ではない」と言い、犯人不明のまま。
-
-**リスクのまとめ：**
-- 誰の操作ミスか特定できないため、再発防止策を打てない
-- 「deploy のパスワードを知っている全員」が容疑者になる
-- 退職者がパスワードを知っていた場合、不正アクセスの検知が困難
-
-**解決策：** 全員に個人アカウントを作り、必要なコマンドだけ sudo 許可する。
+`www-data` は Apache の実行ユーザー。Web リクエストを処理するワーカープロセスが複数起動している。
 
 ---
 
-## よくある躓きポイント
+### 大問5. systemctl list-units --type=service --state=failed を実行し、failed なサービスがあれば journalctl -u サービス名 -n 20 でエラーの原因を調べて報告せよ
 
-**Q: visudo で保存しようとしたら警告が出た**
-A: sudoers に文法エラーがある。`e` を押して修正する。
-絶対に `:q!` で保存せずに終了しないこと（sudo が使えなくなる）。
+```bash
+systemctl list-units --type=service --state=failed
+journalctl -u サービス名.service -n 20 --no-pager
+```
 
-**Q: kill しても終わらない**
-A: `kill -9 PID` を試す。それでも終わらない場合は D状態（I/O待ち）の可能性があり、
-再起動しか手段がないことも。
+**failed がない場合：** 「現在 failed 状態のサービスはなし。」
+
+**調査ポイント：** ExecStart のパスのミス、設定ファイルの構文エラー、依存サービスの未起動など。
+
+---
+
+### 大問6. suzuki アカウントに切り替えて以下を確認せよ
+
+```bash
+sudo su - suzuki
+pwd          # /home/suzuki が表示される
+ls -la ~
+sudo whoami  # → suzuki is not in the sudoers file.
+exit
+```
+
+---
+
+### 大問7. 思考問題: root 宛の SSH ログイン試行が1日に数千件。PermitRootLogin no だけでは安全と言えるか？さらに実施すべきセキュリティ対策を2つ挙げよ
+
+**「安全とは言えない」**
+
+理由：一般ユーザーへのブルートフォース攻撃は継続するため。sudo 権限ユーザーが突破されれば実質 root 相当の被害が発生する。
+
+1. **パスワード認証を無効化する（`PasswordAuthentication no`）**  
+   公開鍵認証のみにすることでブルートフォース攻撃自体を無効化できる。
+
+2. **fail2ban を導入して自動IPブロックを行う**  
+   一定回数失敗したIPを自動的にブロックし、大量試行を防ぐ。
