@@ -144,6 +144,8 @@ awk '{print $1}' access.log | sort | uniq -c | sort -rn
 - **シェル**：ユーザーとOSカーネルの間に立つインタプリタ。コマンドを受け取って実行する。
 - **bash**（Bourne Again Shell）：最も広く使われるシェルの実装。スクリプトの書き方も提供している。
 - 他にもzsh, fish, dashなどがあるが、サーバーではbashが標準。
+- 参考：[【図解】ログイン/インタラクティブシェルの違いと設定ファイルの読み込み順序](https://qiita.com/ohtsuka-shota/items/ef9e41f9e92cd723df9d)
+- 参考：[初学者のための正しいシェルとカーネルの概念 ～ 大学も技術者認定機関も間違いだらけ](https://qiita.com/ko1nksm/items/935be63e940f00e4c228)
 
 ```bash
 # 変数（スペースを入れてはいけない！ NAME = "value" はエラー）
