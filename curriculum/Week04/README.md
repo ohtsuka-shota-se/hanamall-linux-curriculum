@@ -192,18 +192,60 @@ ss -tnlp | grep 80
 # Step3: ローカルからHTTPで繋がるか？
 curl http://localhost
 
-# Step4: ファイアウォールで80番が開いているか？
-sudo firewall-cmd --list-all
+# Step4: ファイアウォールで80番が開いているか？（環境に合わせて使う）
+sudo firewall-cmd --list-all   # firewalld の場合
+sudo ufw status                # ufw の場合
+sudo iptables -L INPUT -n      # iptables の場合
 
 # Step5: 外部から繋がらない場合はポートを開放
+```
+
+**firewalld の場合（CentOS / Rocky Linux など）：**
+```bash
 sudo firewall-cmd --add-port=80/tcp --permanent
 sudo firewall-cmd --reload
 
-# 意図的に壊して復旧練習
+# 確認
+sudo firewall-cmd --list-ports
+```
+
+**ufw の場合（Ubuntu など）：**
+```bash
+sudo ufw allow 80/tcp
+sudo ufw reload
+
+# 確認
+sudo ufw status
+```
+
+**iptables の場合（上記が使えない環境）：**
+```bash
+# DROPルールを削除して開放
+sudo iptables -D INPUT -p tcp --dport 80 -j DROP
+
+# 確認
+sudo iptables -L INPUT -n | grep 80
+```
+
+---
+
+**意図的に壊して復旧練習：**
+
+```bash
+# ===== firewalld で壊す =====
 sudo firewall-cmd --remove-port=80/tcp --permanent
 sudo firewall-cmd --reload
-# → curlで繋がらないことを確認
-# → ポートを開放して復旧
+curl http://localhost    # ローカルは通る
+# 外部から繋がらないことを確認 → 上記の開放手順で復旧
+
+# ===== ufw で壊す =====
+sudo ufw deny 80/tcp
+sudo ufw reload
+# 外部から繋がらないことを確認 → ufw allow 80/tcp で復旧
+
+# ===== iptables で壊す =====
+sudo iptables -I INPUT -p tcp --dport 80 -j DROP
+# 外部から繋がらないことを確認 → iptables -D INPUT で復旧
 ```
 
 → 詳細手順は `hands-on/04_network.sh` を参照
