@@ -54,16 +54,35 @@ else
   BLOCK_OK=true
 fi
 
-# ブロックが実際に効いているか確認
+# ブロックが実際に効いているか確認（ルールの存在をチェック）
 echo ""
-echo "【3】ブロックの効果を確認します..."
-sleep 1
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 http://localhost 2>/dev/null || echo "000")
-if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" = "403" ]; then
-  echo "✅ 確認OK：外部からのアクセスがブロックされています"
+echo "【3】ファイアウォールルールを確認します..."
+RULE_OK=false
+
+if systemctl is-active --quiet firewalld; then
+  # firewalld: 80/tcp が許可リストにないことを確認
+  if ! sudo firewall-cmd --list-ports 2>/dev/null | grep -q "80/tcp" && \
+     ! sudo firewall-cmd --list-services 2>/dev/null | grep -q "http"; then
+    RULE_OK=true
+  fi
+elif command -v ufw &>/dev/null && sudo ufw status | grep -q "Status: active"; then
+  # ufw: DENY ルールが存在するか確認
+  if sudo ufw status | grep -qE "80.*DENY|80/tcp.*DENY"; then
+    RULE_OK=true
+  fi
+else
+  # iptables: DROP ルールが存在するか確認
+  if sudo iptables -L INPUT -n 2>/dev/null | grep -q "DROP.*tcp.*dpt:80"; then
+    RULE_OK=true
+  fi
+fi
+
+if $RULE_OK; then
+  echo "✅ 確認OK：ファイアウォールルールが適用されています"
+  echo "   （ローカルからは通りますが、外部からのアクセスはブロックされます）"
 else
   echo ""
-  echo "⚠️  ブロックが効いていません（HTTP $HTTP_CODE が返っています）"
+  echo "⚠️  ファイアウォールルールが確認できませんでした"
   echo "   WSL2 環境ではファイアウォールが機能しない場合があります。"
   echo "   この課題は VirtualBox / EC2 などの独立した Linux 環境で実施してください。"
   echo ""
